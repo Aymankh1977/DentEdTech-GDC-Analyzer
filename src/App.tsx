@@ -5,32 +5,29 @@ import { IntelligentFileAnalyzer } from './services/intelligentFileAnalyzer';
 import EnhancedQuestionnaireService from './services/enhancedQuestionnaireService';
 import { PDFGenerator } from './utils/pdfGenerator';
 
-// Safe dynamic imports
-const loadAIService = async () => {
-  try {
-    const module = await import('./services/intelligentFileAnalyzer');
-    return module.IntelligentFileAnalyzer;
-  } catch (error) {
-    console.warn('Intelligent file analyzer not available:', error);
-    return null;
-  }
-};
-
 function App() {
   const [appState, setAppState] = useState('upload');
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [analysisProgress, setAnalysisProgress] = useState(0);
-  const [aiStatus, setAiStatus] = useState<'checking' | 'connected' | 'simulated'>('checking');
+  const [aiStatus, setAiStatus] = useState<'checking' | 'connected' | 'error'>('checking');
   const [analysisResults, setAnalysisResults] = useState<any[]>([]);
   const [questionnaire, setQuestionnaire] = useState<any>(null);
   const [comprehensiveReport, setComprehensiveReport] = useState<string>('');
   const [fileAnalysis, setFileAnalysis] = useState<any[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   useEffect(() => {
     const checkAIConnection = async () => {
-      const hasApiKey = ApiKeyManager.hasApiKey();
-      const endpointAvailable = await ApiKeyManager.testEndpoint();
-      setAiStatus(hasApiKey && endpointAvailable ? 'connected' : 'simulated');
+      try {
+        const endpointAvailable = await ApiKeyManager.testEndpoint();
+        setAiStatus(endpointAvailable ? 'connected' : 'error');
+        if (!endpointAvailable) {
+          setErrorMessage('AI service not available. Please check Netlify configuration.');
+        }
+      } catch (error) {
+        setAiStatus('error');
+        setErrorMessage('Failed to connect to AI service.');
+      }
     };
     
     checkAIConnection();
@@ -42,65 +39,55 @@ function App() {
     
     if (files.length === 1) {
       setAppState('analyzing');
-      await performIntelligentAnalysis(files);
+      await performAIAnalysis(files);
     } else if (files.length > 1) {
       setAppState('select');
     }
   };
 
-  const performIntelligentAnalysis = async (files: File[]) => {
+  const performAIAnalysis = async (files: File[]) => {
     try {
       setAnalysisProgress(10);
+      setErrorMessage('');
       
       const progressInterval = setInterval(() => {
         setAnalysisProgress(prev => {
-          const newProgress = prev + (aiStatus === 'connected' ? 2 : 4);
+          const newProgress = prev + 2;
           return Math.min(newProgress, 90);
         });
       }, 500);
 
-      console.log('🧠 Starting INTELLIGENT FILE ANALYSIS');
+      console.log('🧠 Starting AI ANALYSIS');
       
-      const AIService = await loadAIService();
-      if (AIService) {
-        const results = await AIService.analyzeWithRealFileIntelligence(files);
-        setAnalysisResults(results);
-        
-        // Generate file intelligence for reporting
-        const fileIntelligences = await Promise.all(
-          files.map(async (file) => {
-            const content = await readFileContent(file);
-            return {
-              name: file.name,
-              content: content.substring(0, 3000),
-              type: file.type,
-              size: file.size,
-              documentType: determineDocumentType(file.name, content),
-              extractedEvidence: extractEvidence(content),
-              identifiedGaps: identifyGaps(content),
-              contentStrength: assessStrength(content),
-              keywordDensity: analyzeKeywords(content),
-              relevantSections: extractSections(content)
-            };
-          })
-        );
-        
-        setFileAnalysis(fileIntelligences);
-        const report = AIService.generateIntelligentReport(results, fileIntelligences);
-        setComprehensiveReport(report);
-        
-        // Generate enhanced questionnaire
-        const questionnaire = await EnhancedQuestionnaireService.generateAIQuestionnaire(results, files);
-        setQuestionnaire(questionnaire);
-        
-      } else {
-        // Fallback with basic file analysis
-        await new Promise(resolve => setTimeout(resolve, 4000));
-        const basicAnalysis = await performBasicFileAnalysis(files);
-        setAnalysisResults(basicAnalysis.results);
-        setFileAnalysis(basicAnalysis.fileAnalysis);
-        setComprehensiveReport(basicAnalysis.report);
-      }
+      const results = await IntelligentFileAnalyzer.analyzeWithRealFileIntelligence(files);
+      setAnalysisResults(results);
+      
+      // Generate file intelligence for reporting
+      const fileIntelligences = await Promise.all(
+        files.map(async (file) => {
+          const content = await readFileContent(file);
+          return {
+            name: file.name,
+            content: content.substring(0, 3000),
+            type: file.type,
+            size: file.size,
+            documentType: determineDocumentType(file.name, content),
+            extractedEvidence: extractEvidence(content),
+            identifiedGaps: identifyGaps(content),
+            contentStrength: assessStrength(content),
+            keywordDensity: analyzeKeywords(content),
+            relevantSections: extractSections(content)
+          };
+        })
+      );
+      
+      setFileAnalysis(fileIntelligences);
+      const report = IntelligentFileAnalyzer.generateIntelligentReport(results, fileIntelligences);
+      setComprehensiveReport(report);
+      
+      // Generate enhanced questionnaire
+      const questionnaire = await EnhancedQuestionnaireService.generateAIQuestionnaire(results, files);
+      setQuestionnaire(questionnaire);
       
       clearInterval(progressInterval);
       setAnalysisProgress(100);
@@ -108,50 +95,11 @@ function App() {
       
       setTimeout(() => setAnalysisProgress(0), 1000);
     } catch (error) {
-      console.error('INTELLIGENT ANALYSIS failed:', error);
-      setAppState('results');
+      console.error('AI ANALYSIS failed:', error);
+      setErrorMessage(`Analysis failed: ${error.message}`);
+      setAppState('error');
       setAnalysisProgress(0);
     }
-  };
-
-  // Basic file analysis fallback
-  const performBasicFileAnalysis = async (files: File[]) => {
-    const fileAnalysis = await Promise.all(
-      files.map(async (file) => {
-        const content = await readFileContent(file);
-        return {
-          name: file.name,
-          content: content.substring(0, 2000),
-          type: file.type,
-          size: file.size,
-          documentType: determineDocumentType(file.name, content),
-          evidenceCount: content.split(/\s+/).length > 500 ? 3 : 1,
-          gapCount: 2,
-          strength: content.split(/\s+/).length > 1000 ? 'strong' : 'moderate'
-        };
-      })
-    );
-
-    const results = [{
-      requirement: { 
-        code: 'S1.1', 
-        title: 'Clinical Governance Framework', 
-        domain: 'Patient Safety',
-        category: 'critical'
-      }, 
-      score: 75,
-      analysis: {
-        status: 'partially-met',
-        confidence: 70,
-        evidence: ['File content analysis completed', 'Evidence extraction from uploaded documents'],
-        missingElements: ['Need more specific governance evidence in files'],
-        recommendations: ['Enhance document content with explicit governance framework references']
-      }
-    }];
-
-    const report = `BASIC FILE CONTENT ANALYSIS\nFiles analyzed: ${files.map(f => f.name).join(', ')}\nInitial content assessment completed.`;
-
-    return { results, fileAnalysis, report };
   };
 
   // File content analysis helpers
@@ -160,7 +108,7 @@ function App() {
       const reader = new FileReader();
       reader.onload = (e) => {
         const content = e.target?.result as string;
-        resolve(content || `Content from ${file.name} - Ready for intelligent analysis.`);
+        resolve(content || `Content from ${file.name} - Ready for AI analysis.`);
       };
       reader.onerror = () => reject(new Error(`File reading failed for: ${file.name}`));
       reader.readAsText(file);
@@ -216,25 +164,7 @@ function App() {
   const handleFileSelect = async (index: number) => {
     const selectedFile = uploadedFiles[index];
     setAppState('analyzing');
-    await performIntelligentAnalysis([selectedFile]);
-  };
-
-  const handleSetApiKey = async () => {
-    const apiKey = prompt('Enter your Anthropic API key for INTELLIGENT FILE ANALYSIS:');
-    if (apiKey && ApiKeyManager.isValidApiKey(apiKey)) {
-      ApiKeyManager.setApiKey(apiKey);
-      const endpointAvailable = await ApiKeyManager.testEndpoint();
-      
-      if (endpointAvailable) {
-        setAiStatus('connected');
-        alert('✅ INTELLIGENT FILE ANALYSIS Activated! Deep file content analysis enabled.');
-      } else {
-        setAiStatus('simulated');
-        alert('⚠️ API key saved but endpoint not available. Using intelligent simulation.');
-      }
-    } else {
-      alert('❌ Invalid API key format.');
-    }
+    await performAIAnalysis([selectedFile]);
   };
 
   const handleReset = () => {
@@ -245,6 +175,7 @@ function App() {
     setQuestionnaire(null);
     setComprehensiveReport('');
     setFileAnalysis([]);
+    setErrorMessage('');
   };
 
   const handleDownloadReport = (format: 'pdf' | 'txt' = 'pdf') => {
@@ -253,7 +184,7 @@ function App() {
       const url = URL.createObjectURL(pdfBlob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `GDC-Intelligent-Analysis-${new Date().toISOString().split('T')[0]}.pdf`;
+      link.download = `GDC-AI-Analysis-${new Date().toISOString().split('T')[0]}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -262,7 +193,7 @@ function App() {
       const element = document.createElement('a');
       const file = new Blob([comprehensiveReport], { type: 'text/plain' });
       element.href = URL.createObjectURL(file);
-      element.download = `GDC-Intelligent-Analysis-${new Date().toISOString().split('T')[0]}.txt`;
+      element.download = `GDC-AI-Analysis-${new Date().toISOString().split('T')[0]}.txt`;
       document.body.appendChild(element);
       element.click();
       document.body.removeChild(element);
@@ -313,7 +244,7 @@ ${questionnaire.answers.map((answer: any, index: number) =>
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
               <div className={`p-3 rounded-xl ${
-                aiStatus === 'connected' ? 'bg-gradient-to-r from-green-500 to-emerald-600' : 'bg-gradient-to-r from-blue-500 to-purple-600'
+                aiStatus === 'connected' ? 'bg-gradient-to-r from-green-500 to-emerald-600' : 'bg-gradient-to-r from-red-500 to-orange-600'
               } shadow-lg`}>
                 <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -324,23 +255,14 @@ ${questionnaire.answers.map((answer: any, index: number) =>
                   DentEdTech GDC Analyzer
                 </h1>
                 <p className={`text-sm font-medium ${
-                  aiStatus === 'connected' ? 'text-green-600' : 'text-blue-600'
+                  aiStatus === 'connected' ? 'text-green-600' : 'text-red-600'
                 }`}>
-                  {aiStatus === 'connected' ? '🧠 INTELLIGENT ANALYSIS Active' : '💡 Intelligent Simulation'}
+                  {aiStatus === 'connected' ? '🧠 AI ANALYSIS Active' : '❌ AI Service Error'}
                 </p>
               </div>
             </div>
             
             <div className="flex space-x-3">
-              {aiStatus !== 'connected' && (
-                <button
-                  onClick={handleSetApiKey}
-                  className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
-                >
-                  🧠 Activate INTELLIGENT AI
-                </button>
-              )}
-              
               {appState === 'results' && (
                 <div className="flex space-x-3">
                   <div className="relative group">
@@ -407,69 +329,67 @@ ${questionnaire.answers.map((answer: any, index: number) =>
           <div className="text-center space-y-8">
             <div className="space-y-4">
               <h2 className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                INTELLIGENT FILE ANALYZER
+                AI GDC ANALYZER
               </h2>
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                Deep file content analysis with evidence-based GDC compliance assessment
+                Advanced AI-powered file content analysis for GDC compliance assessment
               </p>
               
               {aiStatus === 'connected' ? (
                 <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6 max-w-2xl mx-auto">
                   <div className="flex items-center justify-center space-x-3 mb-3">
                     <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                    <p className="text-green-800 font-semibold text-lg">INTELLIGENT ANALYSIS ACTIVATED</p>
+                    <p className="text-green-800 font-semibold text-lg">AI ANALYSIS READY</p>
                   </div>
                   <p className="text-green-700">
-                    Real intelligent file analysis enabled. Deep content analysis with evidence extraction and gap identification.
+                    AI analysis service is connected and ready for file content analysis.
                   </p>
                 </div>
               ) : (
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-2xl p-6 max-w-2xl mx-auto">
+                <div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-2xl p-6 max-w-2xl mx-auto">
                   <div className="flex items-center justify-center space-x-3 mb-3">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <p className="text-blue-800 font-semibold text-lg">INTELLIGENT SIMULATION MODE</p>
+                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                    <p className="text-red-800 font-semibold text-lg">AI SERVICE UNAVAILABLE</p>
                   </div>
-                  <p className="text-blue-700">
-                    <strong>Intelligent File Analysis Simulation:</strong> Deep content analysis with realistic evidence extraction and gap identification. 
-                    <button 
-                      onClick={handleSetApiKey}
-                      className="ml-2 text-green-600 hover:text-green-800 font-semibold underline"
-                    >
-                      🧠 Activate real INTELLIGENT ANALYSIS
-                    </button>
+                  <p className="text-red-700">
+                    {errorMessage || 'AI service is not available. Please ensure ANTHROPIC_API_KEY is set in Netlify environment variables.'}
                   </p>
                 </div>
               )}
             </div>
             
-            <FileUpload onFilesUpload={handleFilesUpload} disabled={false} />
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mt-12">
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-200">
-                <div className="text-blue-600 text-2xl mb-3">🧠</div>
-                <h3 className="font-bold text-gray-900 mb-2">Intelligent Analysis</h3>
-                <p className="text-sm text-gray-600">Deep file content analysis with evidence extraction and gap identification</p>
-              </div>
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-200">
-                <div className="text-green-600 text-2xl mb-3">🔍</div>
-                <h3 className="font-bold text-gray-900 mb-2">Evidence-Based</h3>
-                <p className="text-sm text-gray-600">Real content assessment based on actual evidence found in files</p>
-              </div>
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-200">
-                <div className="text-purple-600 text-2xl mb-3">🎯</div>
-                <h3 className="font-bold text-gray-900 mb-2">Gap Identification</h3>
-                <p className="text-sm text-gray-600">Specific content gaps identified with improvement recommendations</p>
-              </div>
-            </div>
+            {aiStatus === 'connected' && (
+              <>
+                <FileUpload onFilesUpload={handleFilesUpload} disabled={false} />
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mt-12">
+                  <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-200">
+                    <div className="text-blue-600 text-2xl mb-3">🧠</div>
+                    <h3 className="font-bold text-gray-900 mb-2">AI Analysis</h3>
+                    <p className="text-sm text-gray-600">Real AI analysis of file content with evidence extraction</p>
+                  </div>
+                  <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-200">
+                    <div className="text-green-600 text-2xl mb-3">🔍</div>
+                    <h3 className="font-bold text-gray-900 mb-2">Evidence-Based</h3>
+                    <p className="text-sm text-gray-600">Analysis based on actual evidence found in file content</p>
+                  </div>
+                  <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-gray-200">
+                    <div className="text-purple-600 text-2xl mb-3">🎯</div>
+                    <h3 className="font-bold text-gray-900 mb-2">Secure</h3>
+                    <p className="text-sm text-gray-600">API keys secured in Netlify environment variables</p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
         {appState === 'select' && (
           <div className="text-center space-y-8">
             <div className="space-y-4">
-              <h2 className="text-3xl font-bold text-gray-900">Select Document for INTELLIGENT ANALYSIS</h2>
+              <h2 className="text-3xl font-bold text-gray-900">Select Document for AI Analysis</h2>
               <p className="text-lg text-gray-600">
-                Choose one document for deep content analysis and evidence-based assessment
+                Choose one document for AI-powered content analysis
               </p>
             </div>
             
@@ -493,7 +413,7 @@ ${questionnaire.answers.map((answer: any, index: number) =>
                   </p>
                   <div className="text-center">
                     <button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl">
-                      🧠 Analyze Deep Content
+                      🧠 Analyze with AI
                     </button>
                   </div>
                 </div>
@@ -506,13 +426,10 @@ ${questionnaire.answers.map((answer: any, index: number) =>
           <div className="text-center space-y-8">
             <div className="space-y-4">
               <h2 className="text-4xl font-bold text-gray-900">
-                {aiStatus === 'connected' ? '🧠 INTELLIGENT' : '💡 INTELLIGENT'} Analysis in Progress
+                AI Analysis in Progress
               </h2>
               <p className="text-xl text-gray-600">
-                {aiStatus === 'connected' 
-                  ? 'Deep file content analysis with evidence extraction and gap identification...'
-                  : 'Intelligent file analysis simulation extracting evidence and identifying gaps...'
-                }
+                AI is analyzing file content and extracting evidence...
               </p>
             </div>
             
@@ -526,19 +443,44 @@ ${questionnaire.answers.map((answer: any, index: number) =>
                   ></div>
                 </div>
                 <p className="text-lg text-gray-700 mt-3 font-semibold">
-                  {aiStatus === 'connected' ? 'INTELLIGENT ANALYSIS' : 'INTELLIGENT ANALYSIS'}: {analysisProgress}%
+                  AI ANALYSIS: {analysisProgress}%
                 </p>
                 {analysisProgress > 30 && analysisProgress < 70 && (
                   <p className="text-sm text-blue-600 mt-2">
-                    Analyzing file content depth and extracting concrete evidence...
+                    Analyzing file content and extracting evidence...
                   </p>
                 )}
                 {analysisProgress >= 70 && (
                   <p className="text-sm text-green-600 mt-2">
-                    Identifying content gaps and generating specific recommendations...
+                    Generating AI-powered insights and recommendations...
                   </p>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {appState === 'error' && (
+          <div className="text-center space-y-8">
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-8 max-w-2xl mx-auto">
+              <div className="text-red-600 text-6xl mb-4">❌</div>
+              <h2 className="text-3xl font-bold text-red-800 mb-4">Analysis Failed</h2>
+              <p className="text-lg text-red-700 mb-6">{errorMessage}</p>
+              <div className="bg-white rounded-lg p-6 text-left">
+                <h3 className="font-semibold text-gray-900 mb-3">To fix this issue:</h3>
+                <ol className="list-decimal list-inside space-y-2 text-gray-700">
+                  <li>Go to your Netlify dashboard</li>
+                  <li>Navigate to Site settings → Environment variables</li>
+                  <li>Add <code className="bg-gray-100 px-2 py-1 rounded">ANTHROPIC_API_KEY</code> with your Claude API key</li>
+                  <li>Redeploy your site</li>
+                </ol>
+              </div>
+              <button
+                onClick={handleReset}
+                className="mt-6 bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200"
+              >
+                🔄 Try Again
+              </button>
             </div>
           </div>
         )}
@@ -547,10 +489,10 @@ ${questionnaire.answers.map((answer: any, index: number) =>
           <div className="space-y-8">
             <div className="text-center">
               <h2 className="text-5xl font-bold text-gray-900 mb-4">
-                {aiStatus === 'connected' ? '🧠 INTELLIGENT' : '💡 INTELLIGENT'} Analysis Complete
+                AI Analysis Complete
               </h2>
               <p className="text-xl text-gray-600">
-                Deep content analysis completed for {uploadedFiles.length} document(s)
+                AI analysis completed for {uploadedFiles.length} document(s)
               </p>
             </div>
 
@@ -582,7 +524,7 @@ ${questionnaire.answers.map((answer: any, index: number) =>
             {/* Comprehensive Report Preview */}
             {comprehensiveReport && (
               <div className="bg-white rounded-2xl shadow-lg p-6">
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">Intelligent Analysis Report</h3>
+                <h3 className="text-2xl font-bold text-gray-900 mb-4">AI Analysis Report</h3>
                 <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
                   <pre className="text-sm text-gray-700 whitespace-pre-wrap">{comprehensiveReport}</pre>
                 </div>
@@ -619,7 +561,7 @@ ${questionnaire.answers.map((answer: any, index: number) =>
                   onClick={() => handleDownloadReport('pdf')}
                   className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105"
                 >
-                  📄 Download Intelligent Report
+                  📄 Download AI Report
                 </button>
                 {questionnaire && (
                   <button
