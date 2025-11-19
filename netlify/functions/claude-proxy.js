@@ -1,5 +1,3 @@
-import fetch from 'node-fetch';
-
 export async function handler(event, context) {
   // Handle CORS
   if (event.httpMethod === 'OPTIONS') {
@@ -50,6 +48,7 @@ export async function handler(event, context) {
 
     console.log('🤖 Making real Claude API call');
     
+    // Use native fetch (available in Node.js 18+)
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
