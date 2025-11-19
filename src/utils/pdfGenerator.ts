@@ -1,7 +1,34 @@
 import jsPDF from 'jspdf';
 
+interface Requirement {
+  requirement: {
+    code: string;
+    title: string;
+    domain: string;
+    category: string;
+  };
+  score: number;
+  analysis: {
+    status: string;
+    recommendations: string[];
+  };
+}
+
+interface Questionnaire {
+  programName: string;
+  institution: string;
+  filledDate: string;
+  overallCompliance: number;
+  answers: Array<{
+    question: string;
+    answer: string;
+    complianceLevel: string;
+    recommendations: string[];
+  }>;
+}
+
 export class PDFGenerator {
-  static generateComprehensiveReport(requirements: any[], questionnaire: any, fileName: string): Blob {
+  static generateComprehensiveReport(requirements: Requirement[], questionnaire: Questionnaire | null, fileName: string): Blob {
     const doc = new jsPDF();
     let yPosition = 20;
     
@@ -27,9 +54,9 @@ export class PDFGenerator {
     
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
-    const overallScore = Math.round(requirements.reduce((sum: number, req: any) => sum + req.score, 0) / requirements.length);
-    const criticalReqs = requirements.filter((req: any) => req.requirement.category === 'critical');
-    const metCritical = criticalReqs.filter((req: any) => req.analysis.status === 'met').length;
+    const overallScore = Math.round(requirements.reduce((sum: number, req: Requirement) => sum + req.score, 0) / requirements.length);
+    const criticalReqs = requirements.filter((req: Requirement) => req.requirement.category === 'critical');
+    const metCritical = criticalReqs.filter((req: Requirement) => req.analysis.status === 'met').length;
     
     const summaryText = [
       `Overall Compliance Score: ${overallScore}%`,
@@ -62,7 +89,7 @@ export class PDFGenerator {
     yPosition += 10;
     
     doc.setFontSize(10);
-    const domains = [...new Set(requirements.map((req: any) => req.requirement.domain))];
+    const domains = [...new Set(requirements.map((req: Requirement) => req.requirement.domain))];
     
     domains.forEach(domain => {
       if (yPosition > 270) {
@@ -70,9 +97,9 @@ export class PDFGenerator {
         yPosition = 20;
       }
       
-      const domainReqs = requirements.filter((req: any) => req.requirement.domain === domain);
-      const domainScore = Math.round(domainReqs.reduce((sum: number, req: any) => sum + req.score, 0) / domainReqs.length);
-      const metCount = domainReqs.filter((req: any) => req.analysis.status === 'met').length;
+      const domainReqs = requirements.filter((req: Requirement) => req.requirement.domain === domain);
+      const domainScore = Math.round(domainReqs.reduce((sum: number, req: Requirement) => sum + req.score, 0) / domainReqs.length);
+      const metCount = domainReqs.filter((req: Requirement) => req.analysis.status === 'met').length;
       
       doc.setTextColor(0, 0, 0);
       doc.text(`${domain}: ${domainScore}% (${metCount}/${domainReqs.length} met)`, 25, yPosition);
@@ -94,17 +121,18 @@ export class PDFGenerator {
     
     doc.setFontSize(10);
     const highPriority = requirements
-      .filter((req: any) => (req.requirement.category === 'critical' && req.score < 80) || req.score < 60)
+      .filter((req: Requirement) => (req.requirement.category === 'critical' && req.score < 80) || req.score < 60)
       .slice(0, 10);
     
-    highPriority.forEach((req: any, index: number) => {
+    highPriority.forEach((req: Requirement, index: number) => {
       if (yPosition > 270) {
         doc.addPage();
         yPosition = 20;
       }
       
       doc.setTextColor(0, 0, 0);
-      doc.text(`${index + 1}. ${req.requirement.code}: ${req.analysis.recommendations[0]}`, 25, yPosition);
+      const recommendation = req.analysis.recommendations[0] || 'Implement comprehensive framework';
+      doc.text(`${index + 1}. ${req.requirement.code}: ${recommendation}`, 25, yPosition);
       yPosition += 6;
     });
     
@@ -129,23 +157,23 @@ export class PDFGenerator {
       yPosition += 6;
       doc.text(`Overall Compliance: ${questionnaire.overallCompliance}%`, 25, yPosition);
       yPosition += 6;
-      doc.text(`Inspection Ready: ${questionnaire.inspectionReady ? 'YES' : 'NO'}`, 25, yPosition);
+      doc.text(`Inspection Ready: ${questionnaire.overallCompliance >= 75 ? 'YES' : 'NO'}`, 25, yPosition);
     }
     
     // Footer
-    const pageCount = doc.getNumberOfPages();
+    const pageCount = (doc as any).getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.setFontSize(8);
       doc.setTextColor(150, 150, 150);
       doc.text(`DentEdTech GDC Analyzer - Page ${i} of ${pageCount}`, 20, 285);
-      doc.text(`Generated on ${new Date().toLocaleDateString()}`, 180, 285, { align: 'right' });
+      doc.text(`Generated on ${new Date().toLocaleDateString()}`, 180, 285, { align: 'right' } as any);
     }
     
     return doc.output('blob');
   }
   
-  static generateQuestionnairePDF(questionnaire: any): Blob {
+  static generateQuestionnairePDF(questionnaire: Questionnaire): Blob {
     const doc = new jsPDF();
     let yPosition = 20;
     
@@ -172,7 +200,7 @@ export class PDFGenerator {
     doc.text('QUESTIONNAIRE RESPONSES', 20, yPosition);
     yPosition += 10;
     
-    questionnaire.answers.forEach((answer: any, index: number) => {
+    questionnaire.answers.forEach((answer, index: number) => {
       if (yPosition > 270) {
         doc.addPage();
         yPosition = 20;
@@ -182,12 +210,12 @@ export class PDFGenerator {
       doc.setTextColor(0, 0, 0);
       
       // Question
-      doc.setFont(undefined, 'bold');
+      (doc as any).setFont(undefined, 'bold');
       doc.text(`${index + 1}. ${answer.question}`, 20, yPosition);
       yPosition += 6;
       
       // Answer
-      doc.setFont(undefined, 'normal');
+      (doc as any).setFont(undefined, 'normal');
       const answerLines = doc.splitTextToSize(answer.answer, 170);
       answerLines.forEach((line: string) => {
         if (yPosition > 270) {
@@ -226,13 +254,13 @@ export class PDFGenerator {
     });
     
     // Footer
-    const pageCount = doc.getNumberOfPages();
+    const pageCount = (doc as any).getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.setFontSize(8);
       doc.setTextColor(150, 150, 150);
       doc.text('DentEdTech GDC Analyzer - AI-Powered Questionnaire', 20, 285);
-      doc.text(`Generated on ${new Date().toLocaleDateString()}`, 180, 285, { align: 'right' });
+      doc.text(`Generated on ${new Date().toLocaleDateString()}`, 180, 285, { align: 'right' } as any);
     }
     
     return doc.output('blob');
