@@ -2,6 +2,14 @@ import { GDCRequirement, RequirementCompliance, RequirementAnalysis } from '../t
 import { COMPREHENSIVE_GDC_REQUIREMENTS } from '../data/comprehensiveGDCRequirements';
 import { ApiKeyManager } from '../utils/apiKeyManager';
 
+// Safe type definitions to avoid build errors
+interface SafeFileContent {
+  name: string;
+  content: string;
+  type: string;
+  size: number;
+}
+
 export const ULTIMATE_GDC_REQUIREMENTS: GDCRequirement[] = COMPREHENSIVE_GDC_REQUIREMENTS;
 
 export class UltimateAIAnalysisService {
@@ -59,7 +67,7 @@ export class UltimateAIAnalysisService {
 
   private static async analyzeRequirementWithUltimateAI(
     requirement: GDCRequirement,
-    fileContents: any[]
+    fileContents: SafeFileContent[]
   ): Promise<RequirementAnalysis> {
     
     const prompt = this.createUltimateAIPrompt(requirement, fileContents);
@@ -80,7 +88,7 @@ export class UltimateAIAnalysisService {
     }
   }
 
-  private static createUltimateAIPrompt(requirement: GDCRequirement, fileContents: any[]): string {
+  private static createUltimateAIPrompt(requirement: GDCRequirement, fileContents: SafeFileContent[]): string {
     const documentsContext = fileContents.map(file => 
       `DOCUMENT: ${file.name}\nCONTENT PREVIEW: ${file.content.substring(0, 3000)}...\n---`
     ).join('\n\n');
@@ -138,7 +146,7 @@ Be EVIDENCE-BASED, SPECIFIC, and PRACTICAL. Focus on what is ACTUALLY present ac
   private static parseUltimateAIResponse(
     aiResponse: string, 
     requirement: GDCRequirement,
-    fileContents: any[],
+    fileContents: SafeFileContent[],
     simulated: boolean
   ): RequirementAnalysis {
     const lines = aiResponse.split('\n');
@@ -257,7 +265,7 @@ Be EVIDENCE-BASED, SPECIFIC, and PRACTICAL. Focus on what is ACTUALLY present ac
 
   private static createEnhancedProfessionalAnalysis(
     requirement: GDCRequirement,
-    fileContents: any[]
+    fileContents: SafeFileContent[]
   ): RequirementAnalysis {
     // Enhanced simulation based on multi-document analysis
     const status = this.getSmartStatus(requirement);

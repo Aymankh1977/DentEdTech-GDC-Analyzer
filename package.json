@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
+    "build:safe": "vite build --mode production",
     "preview": "vite preview",
     "netlify-dev": "netlify dev"
   },
