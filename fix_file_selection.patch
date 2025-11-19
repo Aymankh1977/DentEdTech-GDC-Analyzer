@@ -1,0 +1,27 @@
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -40,7 +40,7 @@ function App() {
+ 
+   const handleFilesUpload = async (files: File[]) => {
+     console.log('🎯 Files uploaded:', files.length);
+-    setUploadedFiles(files);
++    setUploadedFiles([...files]); // Create new array to ensure reactivity
+     
+     if (files.length === 1) {
+       setAppState('analyzing');
+@@ -76,10 +76,12 @@ function App() {
+   };
+ 
+   const handleFileSelect = async (index: number) => {
+-    console.log('📁 File selected:', uploadedFiles[index]?.name);
++    const selectedFile = uploadedFiles[index];
++    console.log('📁 File selected for analysis:', selectedFile?.name);
++    console.log('📋 All uploaded files:', uploadedFiles.map(f => f.name));
+     setAppState('analyzing');
+-    await performAIRequirementAnalysis([uploadedFiles[index]]);
+-  };
++    await performAIRequirementAnalysis([selectedFile]);
++  };
+ 
+   const handleRequirementSelect = (requirement: RequirementCompliance) => {
+     setSelectedRequirement(requirement);

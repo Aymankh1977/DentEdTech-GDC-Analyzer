@@ -1,0 +1,410 @@
+import React, { useState, useEffect } from 'react';
+import FileUpload from './components/FileUpload';
+import { OrganizedRequirementsGrid } from './components/OrganizedRequirementsGrid';
+import { analyzeRequirements } from './services/requirementAnalysisService';
+import { ComprehensiveQuestionnaireService } from './services/comprehensiveQuestionnaireService';
+import { ProfessionalPDFService } from './services/professionalPdfService';
+import { ApiKeyManager } from './utils/apiKeyManager';
+import { RequirementCompliance } from './types/gdcRequirements';
+import { FilledQuestionnaire } from './types/questionnaire';
+
+function App() {
+  const [appState, setAppState] = useState('upload');
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [requirements, setRequirements] = useState<RequirementCompliance[]>([]);
+  const [selectedRequirement, setSelectedRequirement] = useState<RequirementCompliance | null>(null);
+  const [questionnaire, setQuestionnaire] = useState<FilledQuestionnaire | null>(null);
+  const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [aiStatus, setAiStatus] = useState<'checking' | 'connected' | 'simulated'>('checking');
+
+  useEffect(() => {
+    const checkAIConnection = async () => {
+      const hasApiKey = ApiKeyManager.hasApiKey();
+      setAiStatus(hasApiKey ? 'connected' : 'simulated');
+      console.log(hasApiKey ? '🔑 API Key available' : '🤖 Using smart simulation');
+    };
+    checkAIConnection();
+  }, []);
+
+  const handleFilesUpload = async (files: File[]) => {
+    console.log('🎯 Files uploaded:', files.length);
+    setUploadedFiles(files);
+    
+    if (files.length === 1) {
+      setAppState('analyzing');
+      await performAIRequirementAnalysis(files);
+    } else if (files.length > 1) {
+      setAppState('select');
+    }
+  };
+
+  const performAIRequirementAnalysis = async (files: File[]) => {
+    try {
+      setAnalysisProgress(10);
+      
+      const progressInterval = setInterval(() => {
+        setAnalysisProgress(prev => {
+          const newProgress = prev + (aiStatus === 'connected' ? 2 : 5);
+          return Math.min(newProgress, 90);
+        });
+      }, 500);
+
+      const results = await analyzeRequirements(files);
+      clearInterval(progressInterval);
+      setAnalysisProgress(100);
+      
+      setRequirements(results);
+      
+      const generatedQuestionnaire = ComprehensiveQuestionnaireService.generateCompleteQuestionnaire(
+        results, 
+        files[0].name
+      );
+      setQuestionnaire(generatedQuestionnaire);
+      
+      setAppState('results');
+      
+      setTimeout(() => setAnalysisProgress(0), 1000);
+    } catch (error) {
+      console.error('Analysis failed:', error);
+      setAppState('results');
+      setAnalysisProgress(0);
+    }
+  };
+
+  const handleFileSelect = async (index: number) => {
+    console.log('📁 File selected:', uploadedFiles[index]?.name);
+    setAppState('analyzing');
+    await performAIRequirementAnalysis([uploadedFiles[index]]);
+  };
+
+  const handleRequirementSelect = (requirement: RequirementCompliance) => {
+    setSelectedRequirement(requirement);
+  };
+
+  const handleDownloadReport = () => {
+    if (requirements.length > 0 && uploadedFiles[0]) {
+      ProfessionalPDFService.generateAnalysisPDF(requirements, uploadedFiles[0].name);
+    }
+  };
+
+  const handleDownloadQuestionnaire = () => {
+    if (questionnaire && uploadedFiles[0]) {
+      ProfessionalPDFService.generateQuestionnairePDF(questionnaire, uploadedFiles[0].name);
+    }
+  };
+
+  const handleDownloadComprehensivePDF = () => {
+    if (requirements.length > 0 && questionnaire && uploadedFiles[0]) {
+      ProfessionalPDFService.generateComprehensivePDF(requirements, questionnaire, uploadedFiles[0].name);
+    }
+  };
+
+  const handleReset = () => {
+    setUploadedFiles([]);
+    setRequirements([]);
+    setSelectedRequirement(null);
+    setQuestionnaire(null);
+    setAnalysisProgress(0);
+    setAppState('upload');
+  };
+
+  const handleSetApiKey = () => {
+    const apiKey = prompt('Enter your Anthropic API key:');
+    if (apiKey) {
+      if (ApiKeyManager.isValidApiKey(apiKey)) {
+        ApiKeyManager.setApiKey(apiKey);
+        setAiStatus('connected');
+        alert('✅ API key saved! Real AI analysis enabled.');
+      } else {
+        alert('❌ Invalid API key format. Please check your key.');
+      }
+    }
+  };
+
+  const overallScore = requirements.length > 0 
+    ? Math.round(requirements.reduce((sum, req) => sum + req.score, 0) / requirements.length)
+    : 0;
+
+  const metCount = requirements.filter(r => r.analysis.status === 'met').length;
+  const partiallyMetCount = requirements.filter(r => r.analysis.status === 'partially-met').length;
+  const notMetCount = requirements.filter(r => r.analysis.status === 'not-met').length;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center space-x-3">
+              <div className={`p-2 rounded-lg ${
+                aiStatus === 'connected' ? 'bg-green-600' : 'bg-yellow-600'
+              }`}>
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">DentEdTech GDC Analyzer</h1>
+                <p className={`text-sm ${
+                  aiStatus === 'connected' ? 'text-green-600' : 'text-yellow-600'
+                }`}>
+                  {aiStatus === 'connected' ? 'Real AI Analysis Available' : 'Professional Simulation Mode'}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex space-x-2">
+              {aiStatus !== 'connected' && (
+                <button
+                  onClick={handleSetApiKey}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors duration-200 text-sm"
+                >
+                  Enable Real AI
+                </button>
+              )}
+              
+              {appState === 'results' && (
+                <>
+                  <button
+                    onClick={handleDownloadQuestionnaire}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2 text-sm"
+                  >
+                    Questionnaire PDF
+                  </button>
+                  <button
+                    onClick={handleDownloadReport}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2 text-sm"
+                  >
+                    Analysis PDF
+                  </button>
+                  <button
+                    onClick={handleDownloadComprehensivePDF}
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2 text-sm"
+                  >
+                    Full Report PDF
+                  </button>
+                  <button
+                    onClick={() => ProfessionalPDFService.generateGoldStandardPDF(requirements, uploadedFiles[0].name)}
+                    className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2 text-sm"
+                  >
+                    Gold Standard PDF
+                  </button>
+                  <button
+                    onClick={handleReset}
+                    className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors duration-200 text-sm"
+                  >
+                    New Analysis
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        {appState === 'upload' && (
+          <div className="text-center space-y-8">
+            <div className="space-y-4">
+              <h2 className="text-4xl font-bold text-gray-900">Professional GDC Compliance Analysis</h2>
+              <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                {aiStatus === 'connected' 
+                  ? 'Real AI-powered analysis of dental education documents'
+                  : 'Professional simulation with comprehensive GDC standards analysis'
+                }
+              </p>
+              {aiStatus !== 'connected' && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md mx-auto">
+                  <p className="text-yellow-800 text-sm">
+                    <strong>Simulation Mode:</strong> Using professional simulated analysis. 
+                    <button 
+                      onClick={handleSetApiKey}
+                      className="ml-2 text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Enable real AI analysis
+                    </button>
+                  </p>
+                </div>
+              )}
+            </div>
+            
+            <FileUpload onFilesUpload={handleFilesUpload} disabled={false} />
+          </div>
+        )}
+
+        {appState === 'select' && (
+          <div className="text-center space-y-8">
+            <div className="space-y-4">
+              <h2 className="text-3xl font-bold text-gray-900">Select Document for Analysis</h2>
+              <p className="text-lg text-gray-600">
+                Choose one document for comprehensive GDC requirement analysis
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+              {uploadedFiles.map((file, index) => (
+                <div
+                  key={index}
+                  className="bg-white rounded-lg shadow-lg p-6 border-2 border-transparent hover:border-blue-500 cursor-pointer transition-all duration-200"
+                  onClick={() => handleFileSelect(index)}
+                >
+                  <div className="text-blue-600 mb-3">
+                    <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2 text-center truncate">
+                    {file.name.replace(/\.[^/.]+$/, "")}
+                  </h3>
+                  <p className="text-xs text-gray-500 text-center mb-2">
+                    {(file.size / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {appState === 'analyzing' && (
+          <div className="text-center space-y-8">
+            <div className="space-y-4">
+              <h2 className="text-3xl font-bold text-gray-900">
+                {aiStatus === 'connected' ? 'Real AI' : 'Professional'} Analysis in Progress
+              </h2>
+              <p className="text-lg text-gray-600">
+                {aiStatus === 'connected' 
+                  ? 'AI is analyzing document against 12 GDC requirements...'
+                  : 'Professional analysis in progress with comprehensive simulations...'
+                }
+              </p>
+            </div>
+            
+            <div className="flex justify-center items-center space-x-4">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-600"></div>
+              <div className="text-left">
+                <div className="w-64 bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${analysisProgress}%` }}
+                  ></div>
+                </div>
+                <p className="text-sm text-gray-600 mt-2">
+                  {aiStatus === 'connected' ? 'AI Analysis' : 'Professional Analysis'}: {analysisProgress}%
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {appState === 'results' && (
+          <div className="space-y-8">
+            <div className="text-center">
+              <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                {aiStatus === 'connected' ? 'Real AI' : 'Professional'} Analysis Complete
+              </h2>
+              <p className="text-xl text-gray-600">
+                Analyzed {uploadedFiles[0]?.name} against {requirements.length} GDC requirements
+              </p>
+              {aiStatus !== 'connected' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto mt-4">
+                  <p className="text-blue-800 text-sm">
+                    <strong>Professional Simulation:</strong> Using advanced simulated analysis based on GDC standards.
+                    For real AI analysis with your specific documents, enable AI mode.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Overall Compliance Score */}
+            <div className="bg-white rounded-2xl shadow-xl p-8">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-6 text-center">
+                <div>
+                  <div className="text-3xl font-bold text-green-600">{metCount}</div>
+                  <div className="text-sm text-gray-600">Fully Met</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold text-yellow-600">{partiallyMetCount}</div>
+                  <div className="text-sm text-gray-600">Partially Met</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold text-red-600">{notMetCount}</div>
+                  <div className="text-sm text-gray-600">Not Met</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold text-blue-600">{requirements.length}</div>
+                  <div className="text-sm text-gray-600">Total Reqs</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold text-purple-600">{overallScore}%</div>
+                  <div className="text-sm text-gray-600">Overall Score</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Requirements Grid */}
+            {requirements.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-xl p-8">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-2xl font-bold text-gray-900">GDC Requirements Analysis</h3>
+                  <span className="text-sm text-gray-500">{requirements.length} requirements analyzed</span>
+                </div>
+                <OrganizedRequirementsGrid
+                  requirements={requirements}
+                  onRequirementSelect={handleRequirementSelect}
+                />
+              </div>
+            )}
+
+            {/* Selected Requirement Detail */}
+            {selectedRequirement && (
+              <div className="bg-white rounded-2xl shadow-xl p-8">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900">
+                      {selectedRequirement.requirement.code}: {selectedRequirement.requirement.title}
+                    </h3>
+                    <p className="text-gray-600 mt-2">{selectedRequirement.requirement.description}</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-3xl font-bold text-gray-900">{selectedRequirement.score}%</div>
+                    <div className="text-sm text-gray-500">Compliance Score</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <div>
+                    <h4 className="font-semibold text-gray-700 mb-3">Evidence Analysis</h4>
+                    <ul className="text-sm text-gray-600 space-y-2">
+                      {selectedRequirement.analysis.evidence.map((item, index) => (
+                        <li key={index} className="flex items-start">
+                          <svg className="w-4 h-4 text-green-600 mt-1 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-700 mb-3">Recommendations</h4>
+                    <ul className="text-sm text-gray-600 space-y-2">
+                      {selectedRequirement.analysis.recommendations.map((item, index) => (
+                        <li key={index} className="flex items-start">
+                          <svg className="w-4 h-4 text-blue-600 mt-1 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+export default App;

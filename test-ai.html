@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Integration Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .test { margin: 20px 0; padding: 15px; border-radius: 8px; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        button { padding: 10px 20px; margin: 10px; border: none; border-radius: 5px; cursor: pointer; }
+        .run-test { background: #007bff; color: white; }
+        .set-key { background: #28a745; color: white; }
+    </style>
+</head>
+<body>
+    <h1>🧠 AI Integration Test</h1>
+    
+    <div class="test info">
+        <h3>Test Instructions</h3>
+        <p>This page tests the AI integration in the DentEdTech GDC Analyzer platform.</p>
+    </div>
+
+    <div id="testResults"></div>
+
+    <div>
+        <button class="run-test" onclick="runAITests()">Run AI Integration Tests</button>
+        <button class="set-key" onclick="setTestAPIKey()">Set Test API Key</button>
+    </div>
+
+    <script type="module">
+        // Import the AI services
+        import { ClaudeAIService } from './src/services/claudeAIService.js';
+        import { PerformanceAIService } from './src/services/performanceAIService.js';
+        import { ApiKeyManager } from './src/utils/apiKeyManager.js';
+
+        // Make them globally available for testing
+        window.ClaudeAIService = ClaudeAIService;
+        window.PerformanceAIService = PerformanceAIService;
+        window.ApiKeyManager = ApiKeyManager;
+
+        async function runAITests() {
+            const results = document.getElementById('testResults');
+            results.innerHTML = '<div class="test info">Running tests...</div>';
+
+            const tests = [];
+
+            // Test 1: API Key Availability
+            tests.push({
+                name: 'API Key Check',
+                run: () => {
+                    const hasKey = ApiKeyManager.hasApiKey();
+                    return {
+                        success: hasKey,
+                        message: hasKey ? 'API key is available' : 'No API key found'
+                    };
+                }
+            });
+
+            // Test 2: Service Availability
+            tests.push({
+                name: 'Service Loading',
+                run: () => {
+                    const servicesLoaded = !!window.ClaudeAIService && !!window.PerformanceAIService;
+                    return {
+                        success: servicesLoaded,
+                        message: servicesLoaded ? 
+                            'All AI services loaded successfully' : 
+                            'Some services failed to load'
+                    };
+                }
+            });
+
+            // Test 3: Method Availability
+            tests.push({
+                name: 'Method Availability',
+                run: () => {
+                    const claudeMethods = Object.keys(ClaudeAIService).length;
+                    const performanceMethods = Object.keys(PerformanceAIService).length;
+                    
+                    return {
+                        success: claudeMethods > 0 && performanceMethods > 0,
+                        message: `ClaudeAIService: ${claudeMethods} methods, PerformanceAIService: ${performanceMethods} methods`
+                    };
+                }
+            });
+
+            // Test 4: File Processing Capability
+            tests.push({
+                name: 'Browser Capabilities',
+                run: () => {
+                    const fileReaderAvailable = typeof FileReader !== 'undefined';
+                    const fetchAvailable = typeof fetch !== 'undefined';
+                    
+                    return {
+                        success: fileReaderAvailable && fetchAvailable,
+                        message: `FileReader: ${fileReaderAvailable ? '✅' : '❌'}, Fetch: ${fetchAvailable ? '✅' : '❌'}`
+                    };
+                }
+            });
+
+            // Run all tests
+            let allPassed = true;
+            let resultsHTML = '';
+
+            for (const test of tests) {
+                try {
+                    const result = test.run();
+                    const testClass = result.success ? 'success' : 'error';
+                    resultsHTML += `
+                        <div class="test ${testClass}">
+                            <h3>${test.name}: ${result.success ? '✅ PASS' : '❌ FAIL'}</h3>
+                            <p>${result.message}</p>
+                        </div>
+                    `;
+                    
+                    if (!result.success) allPassed = false;
+                } catch (error) {
+                    resultsHTML += `
+                        <div class="test error">
+                            <h3>${test.name}: ❌ ERROR</h3>
+                            <p>${error.message}</p>
+                        </div>
+                    `;
+                    allPassed = false;
+                }
+            }
+
+            // Summary
+            resultsHTML = `
+                <div class="test ${allPassed ? 'success' : 'error'}">
+                    <h3>Overall Result: ${allPassed ? '✅ ALL TESTS PASSED' : '❌ SOME TESTS FAILED'}</h3>
+                    <p>AI Integration ${allPassed ? 'is ready' : 'needs configuration'}</p>
+                </div>
+            ` + resultsHTML;
+
+            results.innerHTML = resultsHTML;
+        }
+
+        function setTestAPIKey() {
+            const testKey = prompt('Enter a test API key (or leave empty to test without key):');
+            if (testKey !== null) {
+                if (testKey === '' || ApiKeyManager.isValidApiKey(testKey)) {
+                    if (testKey) {
+                        ApiKeyManager.setApiKey(testKey);
+                        alert('✅ Test API key set!');
+                    } else {
+                        ApiKeyManager.removeApiKey();
+                        alert('✅ API key removed (simulation mode)');
+                    }
+                } else {
+                    alert('❌ Invalid API key format');
+                }
+            }
+        }
+
+        // Initialize
+        console.log('🧠 AI Test Page Loaded');
+        console.log('Available services:', {
+            ClaudeAIService: !!window.ClaudeAIService,
+            PerformanceAIService: !!window.PerformanceAIService,
+            ApiKeyManager: !!window.ApiKeyManager
+        });
+    </script>
+</body>
+</html>

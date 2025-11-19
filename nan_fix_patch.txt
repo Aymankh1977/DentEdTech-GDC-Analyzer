@@ -1,0 +1,64 @@
+// REPLACE the calculateRequirementScore method in workingAIService.ts with this:
+
+  static calculateRequirementScore(analysis: RequirementAnalysis): number {
+    // COMPREHENSIVE NaN PROTECTION
+    try {
+      if (!analysis) {
+        console.error('❌ calculateRequirementScore: analysis is null/undefined');
+        return 50;
+      }
+
+      if (!analysis.status) {
+        console.error('❌ calculateRequirementScore: analysis.status is missing', analysis);
+        return 50;
+      }
+
+      const baseScores = {
+        'met': 85,
+        'partially-met': 65, 
+        'not-met': 35
+      };
+
+      const baseScore = baseScores[analysis.status];
+      
+      if (typeof baseScore !== 'number' || isNaN(baseScore)) {
+        console.error('❌ calculateRequirementScore: Invalid baseScore for status:', analysis.status);
+        return 50;
+      }
+
+      let confidence = 75;
+      if (analysis.confidence !== undefined && analysis.confidence !== null) {
+        confidence = Number(analysis.confidence);
+        if (isNaN(confidence)) {
+          console.warn('⚠️ calculateRequirementScore: confidence is NaN, using default 75');
+          confidence = 75;
+        }
+      }
+
+      confidence = Math.max(50, Math.min(95, confidence));
+      const confidenceBonus = (confidence - 50) / 50 * 20;
+      const categoryBonus = analysis.requirement?.category === 'critical' ? 5 : 0;
+      
+      let finalScore = baseScore + confidenceBonus + categoryBonus;
+      
+      if (isNaN(finalScore)) {
+        console.error('❌ calculateRequirementScore: finalScore is NaN after calculation');
+        return baseScore;
+      }
+
+      finalScore = Math.min(98, Math.max(20, finalScore));
+      const roundedScore = Math.round(finalScore);
+      
+      if (isNaN(roundedScore)) {
+        console.error('❌ calculateRequirementScore: roundedScore is NaN');
+        return 50;
+      }
+
+      console.log(`🧮 Score calculation SUCCESS: ${analysis.requirement?.code} = ${roundedScore}%`);
+      return roundedScore;
+
+    } catch (error) {
+      console.error('💥 calculateRequirementScore: Unexpected error:', error);
+      return 50;
+    }
+  }

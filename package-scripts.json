@@ -1,0 +1,10 @@
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview",
+    "proxy": "node server/proxy.js",
+    "dev:full": "concurrently \"npm run proxy\" \"npm run dev\""
+  }
+}

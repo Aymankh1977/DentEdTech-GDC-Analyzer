@@ -1,0 +1,14 @@
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -42,10 +42,10 @@ function App() {
+ 
+   const handleFilesUpload = async (files: File[]) => {
+     console.log('🎯 Files uploaded for analysis:', files.map(f => f.name));
++    setGlobalUploadedFiles(files); // CRITICAL: Set global state FIRST
+     setUploadedFiles([...files]);
+     
+     if (files.length === 1) {
+-      setSelectedFileIndex(0);
+       setGlobalSelectedFileIndex(0);
+       setAppState('analyzing');
+       await performAIRequirementAnalysis(files);

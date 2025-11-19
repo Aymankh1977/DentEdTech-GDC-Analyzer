@@ -1,0 +1,22 @@
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,5 +1,6 @@
+ import React, { useState, useEffect } from 'react';
+ import FileUpload from './components/FileUpload';
++import { COMPREHENSIVE_GDC_REQUIREMENTS } from './data/comprehensiveGDCRequirements';
+ import { OrganizedRequirementsGrid } from './components/OrganizedRequirementsGrid';
+ import { analyzeRequirements } from './services/requirementAnalysisService';
+ import { ComprehensiveQuestionnaireService } from './services/comprehensiveQuestionnaireService';
+@@ -76,7 +77,7 @@ function App() {
+             <h2 className="text-3xl font-bold text-gray-900">
+               {aiStatus === 'connected' ? 'Real AI' : 'Professional'} Analysis in Progress
+             </h2>
+             <p className="text-lg text-gray-600">
+-              {aiStatus === 'connected' 
+-                ? 'AI is analyzing document against 12 GDC requirements...'
+-                : 'Professional analysis in progress with comprehensive simulations...'
++              {aiStatus === 'connected' 
++                ? `AI is analyzing document against ${COMPREHENSIVE_GDC_REQUIREMENTS.length} GDC requirements...`
++                : `Professional analysis in progress with ${COMPREHENSIVE_GDC_REQUIREMENTS.length} comprehensive simulations...`
+               }
+             </p>
