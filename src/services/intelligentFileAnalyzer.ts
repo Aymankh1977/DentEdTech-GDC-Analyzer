@@ -17,7 +17,7 @@ interface FileIntelligence {
 
 export class IntelligentFileAnalyzer {
   static async analyzeWithRealFileIntelligence(files: File[]): Promise<RequirementCompliance[]> {
-    console.log(`🧠 INTELLIGENT FILE ANALYSIS: Starting deep analysis of ${files.length} files`);
+    console.log(`🧠 INTELLIGENT FILE ANALYSIS: Starting DEEP analysis of ${files.length} files`);
     
     if (!files || files.length === 0) {
       console.error('❌ No files provided for analysis');
@@ -25,23 +25,17 @@ export class IntelligentFileAnalyzer {
     }
 
     try {
-      // Deep file content analysis
+      // Deep file content analysis with ACTUAL file content
       const fileIntelligences = await Promise.all(
         files.map(async (file) => await this.analyzeFileIntelligence(file))
       );
 
-      console.log(`📊 Deep analysis completed:`, fileIntelligences.map(f => ({
-        name: f.name,
-        type: f.documentType,
-        evidence: f.extractedEvidence.length,
-        gaps: f.identifiedGaps.length,
-        strength: f.contentStrength
-      })));
+      console.log(`📊 Deep analysis completed for files:`, fileIntelligences.map(f => f.name));
 
       const complianceResults: RequirementCompliance[] = [];
 
       for (const requirement of COMPREHENSIVE_GDC_REQUIREMENTS) {
-        console.log(`🎯 Intelligent analysis: ${requirement.code} against actual file content`);
+        console.log(`🎯 Analyzing ${requirement.code} against ACTUAL file content`);
         
         try {
           const analysis = await this.analyzeRequirementWithRealEvidence(requirement, fileIntelligences);
@@ -53,10 +47,11 @@ export class IntelligentFileAnalyzer {
             score
           });
 
-          await new Promise(resolve => setTimeout(resolve, 400));
+          // Brief pause to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 500));
           
         } catch (error) {
-          console.error(`❌ Intelligent analysis failed for ${requirement.code}:`, error);
+          console.error(`❌ Analysis failed for ${requirement.code}:`, error);
           const fallbackAnalysis = this.createEvidenceBasedFallback(requirement, fileIntelligences);
           const score = this.calculateIntelligentScore(fallbackAnalysis, fileIntelligences);
           
@@ -68,7 +63,7 @@ export class IntelligentFileAnalyzer {
         }
       }
 
-      console.log(`✅ INTELLIGENT ANALYSIS COMPLETE: ${complianceResults.length} requirements with real evidence`);
+      console.log(`✅ INTELLIGENT ANALYSIS COMPLETE: ${complianceResults.length} requirements analyzed`);
       return complianceResults.sort((a, b) => b.score - a.score);
 
     } catch (error) {
@@ -87,21 +82,22 @@ export class IntelligentFileAnalyzer {
       const keywordDensity = this.analyzeKeywordDensity(content);
       const relevantSections = this.extractRelevantSections(content);
 
+      console.log(`📄 Analyzed ${file.name}: ${documentType}, ${extractedEvidence.length} evidence points`);
+
       return {
         name: file.name,
         content,
         type: file.type,
         size: file.size,
         documentType,
-        extractedEvidence: extractedEvidence || [],
-        identifiedGaps: identifiedGaps || [],
+        extractedEvidence,
+        identifiedGaps,
         contentStrength,
-        keywordDensity: keywordDensity || {},
-        relevantSections: relevantSections || []
+        keywordDensity,
+        relevantSections
       };
     } catch (error) {
       console.error(`❌ File analysis failed for ${file.name}:`, error);
-      // Return basic file info if analysis fails
       return {
         name: file.name,
         content: `Content analysis failed for ${file.name}`,
@@ -117,6 +113,339 @@ export class IntelligentFileAnalyzer {
     }
   }
 
+  private static async analyzeRequirementWithRealEvidence(
+    requirement: GDCRequirement,
+    fileIntelligences: FileIntelligence[]
+  ): Promise<RequirementAnalysis> {
+    
+    const prompt = this.createEvidenceBasedPrompt(requirement, fileIntelligences);
+    
+    try {
+      const response = await ApiKeyManager.callAI(prompt, 4000);
+      
+      if (!response || !response.response) {
+        throw new Error('No response from AI service');
+      }
+      
+      const aiResponse = response.response;
+      
+      return this.parseEvidenceBasedResponse(aiResponse, requirement, fileIntelligences, response.simulated || false);
+
+    } catch (error) {
+      console.error(`💥 Evidence-based AI call failed:`, error);
+      throw new Error(`AI analysis failed for ${requirement.code}: ${error.message}`);
+    }
+  }
+
+  private static createEvidenceBasedPrompt(requirement: GDCRequirement, fileIntelligences: FileIntelligence[]): string {
+    const filesAnalysis = fileIntelligences.map(file => 
+      `FILE: ${file.name} (${file.documentType} - ${file.contentStrength} evidence)
+CONTENT STRENGTH: ${file.contentStrength}
+DOCUMENT TYPE: ${file.documentType}
+FILE SIZE: ${(file.size / 1024).toFixed(2)} KB
+EXTRACTED EVIDENCE (${file.extractedEvidence.length} points):
+${file.extractedEvidence.map((evidence, idx) => `${idx + 1}. ${evidence}`).join('\n')}
+IDENTIFIED GAPS:
+${file.identifiedGaps.map((gap, idx) => `${idx + 1}. ${gap}`).join('\n')}
+RELEVANT CONTENT SECTIONS:
+${file.relevantSections.map((section, idx) => `${idx + 1}. [Relevance: ${section.relevance}] ${section.section}`).join('\n')}
+--- ACTUAL FILE CONTENT (First 4000 characters) ---
+${file.content.substring(0, 4000)}
+--- END OF FILE CONTENT ---`
+    ).join('\n\n');
+
+    return `CRITICAL MISSION: DENTAL EDUCATION GDC COMPLIANCE ANALYSIS
+
+You are a Senior Dental Education Quality Assurance Expert with 20+ years experience.
+Analyze ACTUAL uploaded documents against SPECIFIC GDC requirements.
+
+GDC REQUIREMENT TO ANALYZE:
+- Code: ${requirement.code}
+- Title: ${requirement.title}  
+- Domain: ${requirement.domain}
+- Description: ${requirement.description}
+- Criteria: ${requirement.criteria.join('; ')}
+- Category: ${requirement.category}
+- Weight: ${requirement.weight}
+
+UPLOADED DOCUMENTS FOR ANALYSIS (${fileIntelligences.length} files):
+${filesAnalysis}
+
+ANALYSIS INSTRUCTIONS - BE SPECIFIC AND EVIDENCE-BASED:
+
+1. SEARCH FOR DIRECT EVIDENCE in the ACTUAL file content provided
+2. REFERENCE EXACT FILE NAMES and specific content sections
+3. IDENTIFY WHAT IS ACTUALLY PRESENT vs. WHAT IS MISSING
+4. Provide FILE-SPECIFIC recommendations based on actual content
+5. If evidence is weak or missing, state this clearly
+6. Reference specific file sections that demonstrate compliance or gaps
+7. Focus on DENTAL EDUCATION specifics - curriculum, assessment, clinical governance, patient safety
+8. Be brutally honest about what is ACTUALLY in the files
+
+RESPONSE FORMAT - BE PRECISE AND FILE-SPECIFIC:
+
+STATUS: [met/partially-met/not-met]
+CONFIDENCE: [percentage based on evidence found]%
+
+EVIDENCE_FOUND_IN_FILES:
+[File1: Specific evidence sentence found with content reference|File2: Specific evidence sentence found with content reference|...]
+
+MISSING_ELEMENTS:
+[Specific missing element 1|Specific missing element 2|Specific missing element 3]
+
+FILE_SPECIFIC_RECOMMENDATIONS:
+[Recommendation 1 with specific file enhancement|Recommendation 2 with specific file enhancement|...]
+
+CONTENT_REFERENCES:
+[Exact file name: specific content reference|Exact file name: specific content reference|...]
+
+STRENGTHS_FOUND:
+[Specific strengths based on file content|Specific strengths based on file content|...]
+
+IMPROVEMENT_NEEDED:
+[Specific improvements needed in files|Specific improvements needed in files|...]
+
+GDC_SPECIFIC_ASSESSMENT:
+[How this specifically relates to dental education standards and GDC requirements]
+
+Be brutally honest about what is ACTUALLY in the files. If evidence is weak, say so. If files don't address the requirement, state this clearly.`;
+  }
+
+  private static parseEvidenceBasedResponse(
+    aiResponse: string, 
+    requirement: GDCRequirement,
+    fileIntelligences: FileIntelligence[],
+    simulated: boolean
+  ): RequirementAnalysis {
+    if (!aiResponse) {
+      return this.createEvidenceBasedFallback(requirement, fileIntelligences);
+    }
+
+    const lines = aiResponse.split('\n');
+    const result: any = {
+      status: 'partially-met',
+      confidence: 65,
+      evidence: [],
+      missingElements: [],
+      recommendations: [],
+      relevantContent: [],
+      contentGaps: [],
+      fileImprovements: [],
+      strengths: [],
+      improvements: [],
+      gdcAssessment: []
+    };
+
+    let currentSection = '';
+    
+    lines.forEach(line => {
+      if (!line) return;
+      
+      const trimmed = line.trim();
+      
+      if (trimmed.startsWith('STATUS:')) {
+        const status = trimmed.replace('STATUS:', '').trim().toLowerCase();
+        if (['met', 'partially-met', 'not-met'].includes(status)) {
+          result.status = status;
+        }
+      } else if (trimmed.startsWith('CONFIDENCE:')) {
+        const match = trimmed.match(/CONFIDENCE:\s*(\d+)%/);
+        if (match) result.confidence = parseInt(match[1]);
+      } else if (trimmed.startsWith('EVIDENCE_FOUND_IN_FILES:')) {
+        currentSection = 'evidence';
+      } else if (trimmed.startsWith('MISSING_ELEMENTS:')) {
+        currentSection = 'missingElements';
+      } else if (trimmed.startsWith('FILE_SPECIFIC_RECOMMENDATIONS:')) {
+        currentSection = 'recommendations';
+      } else if (trimmed.startsWith('CONTENT_REFERENCES:')) {
+        currentSection = 'relevantContent';
+      } else if (trimmed.startsWith('STRENGTHS_FOUND:')) {
+        currentSection = 'strengths';
+      } else if (trimmed.startsWith('IMPROVEMENT_NEEDED:')) {
+        currentSection = 'improvements';
+      } else if (trimmed.startsWith('GDC_SPECIFIC_ASSESSMENT:')) {
+        currentSection = 'gdcAssessment';
+      } else if (trimmed.includes('|') && currentSection) {
+        const items = trimmed.split('|').map(item => item.trim()).filter(Boolean);
+        if (result[currentSection]) {
+          result[currentSection].push(...items);
+        }
+      } else if (trimmed && !trimmed.includes(':') && currentSection && result[currentSection]) {
+        result[currentSection].push(trimmed);
+      }
+    });
+
+    // Enhanced file-specific defaults based on actual content
+    if (result.evidence.length === 0) {
+      result.evidence = [];
+      fileIntelligences.forEach(file => {
+        if (file.extractedEvidence && file.extractedEvidence.length > 0) {
+          file.extractedEvidence.slice(0, 2).forEach(evidence => {
+            result.evidence.push(`${file.name}: ${evidence}`);
+          });
+        }
+      });
+      
+      if (result.evidence.length === 0) {
+        result.evidence.push('Limited direct evidence found in uploaded files for this requirement');
+        result.status = 'not-met';
+        result.confidence = 50;
+      }
+    }
+
+    if (result.missingElements.length === 0) {
+      result.missingElements = fileIntelligences.flatMap(file => 
+        file.identifiedGaps.slice(0, 1).map(gap => `${file.name}: ${gap}`)
+      );
+    }
+
+    if (result.recommendations.length === 0) {
+      result.recommendations = fileIntelligences.map(file => 
+        `Enhance ${file.name} with specific ${requirement.domain.toLowerCase()} evidence and GDC compliance references`
+      );
+    }
+
+    return {
+      requirement,
+      status: result.status as 'met' | 'partially-met' | 'not-met',
+      confidence: Math.max(40, Math.min(95, result.confidence || 65)),
+      evidence: (result.evidence || []).slice(0, 8),
+      missingElements: (result.missingElements && result.missingElements.length > 0) ? 
+        result.missingElements.slice(0, 6) : ['Need specific evidence addressing this requirement in uploaded files'],
+      recommendations: (result.recommendations && result.recommendations.length > 0) ? 
+        result.recommendations.slice(0, 6) : ['Add specific content addressing this requirement to relevant files'],
+      relevantContent: (result.relevantContent && result.relevantContent.length > 0) ? 
+        result.relevantContent.slice(0, 4) : ['AI-POWERED FILE CONTENT ANALYSIS'],
+      metadata: {
+        goldStandardPractices: [
+          'Direct evidence mapping from file content',
+          'Comprehensive requirement coverage across documents',
+          'Explicit GDC standard references in content',
+          'Dental education specific implementation'
+        ],
+        inspectionReadiness: result.status === 'met' ? 'ready' : 
+                           result.status === 'partially-met' ? 'partial' : 'not-ready',
+        priorityLevel: requirement.category === 'critical' ? 'critical' : 
+                      result.status === 'not-met' ? 'high' : 'medium',
+        riskLevel: requirement.category === 'critical' && result.status !== 'met' ? 'high' :
+                  result.status === 'not-met' ? 'medium' : 'low',
+        fileAnalysis: {
+          filesAnalyzed: fileIntelligences.length,
+          strongEvidenceFiles: fileIntelligences.filter(f => f.contentStrength === 'strong').length,
+          weakEvidenceFiles: fileIntelligences.filter(f => f.contentStrength === 'weak').length,
+          totalEvidenceFound: fileIntelligences.reduce((sum, file) => sum + (file.extractedEvidence?.length || 0), 0)
+        }
+      }
+    };
+  }
+
+  // ... (keep the existing helper methods like createEvidenceBasedFallback, calculateIntelligentScore, etc.)
+
+  private static createEvidenceBasedFallback(
+    requirement: GDCRequirement,
+    fileIntelligences: FileIntelligence[]
+  ): RequirementAnalysis {
+    // Intelligent fallback based on actual file content analysis
+    const relevantFiles = fileIntelligences.filter(file => 
+      Object.values(file.keywordDensity || {}).some(count => count > 0) ||
+      (file.extractedEvidence && file.extractedEvidence.length > 0)
+    );
+
+    const totalEvidence = fileIntelligences.reduce((sum, file) => sum + (file.extractedEvidence?.length || 0), 0);
+    const strongFiles = fileIntelligences.filter(f => f.contentStrength === 'strong').length;
+    
+    let status: 'met' | 'partially-met' | 'not-met' = 'partially-met';
+    let confidence = 65;
+
+    if (totalEvidence >= 8 && strongFiles >= 2) {
+      status = 'met';
+      confidence = 85;
+    } else if (totalEvidence >= 3) {
+      status = 'partially-met';
+      confidence = 70;
+    } else {
+      status = 'not-met';
+      confidence = 50;
+    }
+
+    const evidenceExamples = fileIntelligences
+      .flatMap(file => (file.extractedEvidence || []).slice(0, 2).map(evidence => `${file.name}: ${evidence}`))
+      .slice(0, 4);
+
+    const gaps = fileIntelligences
+      .flatMap(file => (file.identifiedGaps || []).slice(0, 1).map(gap => `${file.name}: ${gap}`))
+      .slice(0, 3);
+
+    return {
+      requirement,
+      status,
+      confidence,
+      evidence: evidenceExamples.length > 0 ? evidenceExamples : ['AI analysis completed - reviewing file content for evidence'],
+      missingElements: gaps.length > 0 ? gaps : ['Need more specific content addressing this requirement in uploaded files'],
+      recommendations: [
+        `Add explicit ${requirement.code} compliance statements to relevant policy documents`,
+        `Include specific evidence of ${requirement.domain.toLowerCase()} implementation in dental education context`,
+        `Enhance documentation with measurable outcomes and monitoring data for GDC standards`,
+        `Develop comprehensive ${requirement.domain} framework specific to dental education`
+      ],
+      relevantContent: ['AI-POWERED FILE CONTENT ANALYSIS - DENTAL EDUCATION FOCUS'],
+      metadata: {
+        goldStandardPractices: [
+          'Direct file content to requirement mapping',
+          'Comprehensive evidence collection across documents',
+          'Explicit GDC compliance demonstration in content',
+          'Dental education specific implementation evidence'
+        ],
+        inspectionReadiness: status === 'met' ? 'ready' : 
+                           status === 'partially-met' ? 'partial' : 'not-ready',
+        priorityLevel: requirement.category === 'critical' ? 'critical' : 
+                      status === 'not-met' ? 'high' : 'medium',
+        riskLevel: requirement.category === 'critical' && status !== 'met' ? 'high' :
+                  status === 'not-met' ? 'medium' : 'low',
+        fileAnalysis: {
+          filesAnalyzed: fileIntelligences.length,
+          strongEvidenceFiles: strongFiles,
+          weakEvidenceFiles: fileIntelligences.filter(f => f.contentStrength === 'weak').length,
+          totalEvidenceFound: totalEvidence
+        }
+      }
+    };
+  }
+
+  private static calculateIntelligentScore(analysis: RequirementAnalysis, fileIntelligences: FileIntelligence[]): number {
+    const baseScores = {
+      'met': 85,
+      'partially-met': 65, 
+      'not-met': 40
+    };
+
+    const baseScore = baseScores[analysis.status] || 50;
+    const confidenceBonus = ((analysis.confidence || 50) - 50) / 50 * 20;
+    const categoryBonus = analysis.requirement.category === 'critical' ? 8 : 0;
+    
+    // Evidence-based scoring
+    const evidenceStrength = fileIntelligences.filter(f => f.contentStrength === 'strong').length * 3;
+    const evidenceCoverage = Math.min(10, fileIntelligences.filter(f => (f.extractedEvidence?.length || 0) > 0).length * 2);
+    const gapPenalty = Math.max(0, fileIntelligences.filter(f => (f.identifiedGaps?.length || 0) > 0).length * -2);
+    
+    return Math.min(98, Math.max(20, 
+      baseScore + confidenceBonus + categoryBonus + evidenceStrength + evidenceCoverage + gapPenalty
+    ));
+  }
+
+  private static async extractFileContent(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        resolve(content || `File: ${file.name}, Type: ${file.type}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB. Content analysis ready.`);
+      };
+      reader.onerror = () => reject(new Error(`File reading failed for: ${file.name}`));
+      reader.readAsText(file);
+    });
+  }
+
+  // ... (keep the existing helper methods for document type detection, evidence extraction, etc.)
   private static determineDocumentTypeIntelligently(fileName: string, content: string): FileIntelligence['documentType'] {
     if (!fileName || !content) return 'unknown';
     
@@ -171,13 +500,13 @@ export class IntelligentFileAnalyzer {
     const sentences = content.split(/[.!?]+/).filter(s => s && s.trim().length > 20);
     
     const evidencePatterns = {
-      curriculum: ['learning outcome', 'module', 'teaching', 'curriculum', 'syllabus', 'programme'],
-      policy: ['policy', 'procedure', 'shall', 'must', 'required', 'compliance'],
-      assessment: ['assessment', 'exam', 'evaluation', 'marking', 'criteria', 'feedback'],
-      governance: ['committee', 'board', 'governance', 'terms of reference', 'chair'],
-      clinical: ['clinical', 'patient', 'treatment', 'consent', 'safety', 'supervision'],
-      quality: ['quality', 'audit', 'monitoring', 'improvement', 'review', 'evaluation'],
-      unknown: ['policy', 'procedure', 'standard', 'requirement', 'assessment', 'clinical']
+      curriculum: ['learning outcome', 'module', 'teaching', 'curriculum', 'syllabus', 'programme', 'dental', 'education'],
+      policy: ['policy', 'procedure', 'shall', 'must', 'required', 'compliance', 'standard', 'guideline'],
+      assessment: ['assessment', 'exam', 'evaluation', 'marking', 'criteria', 'feedback', 'competence'],
+      governance: ['committee', 'board', 'governance', 'terms of reference', 'chair', 'quality', 'assurance'],
+      clinical: ['clinical', 'patient', 'treatment', 'consent', 'safety', 'supervision', 'dental', 'practice'],
+      quality: ['quality', 'audit', 'monitoring', 'improvement', 'review', 'evaluation', 'standard'],
+      unknown: ['policy', 'procedure', 'standard', 'requirement', 'assessment', 'clinical', 'dental']
     };
 
     const patterns = evidencePatterns[docType as keyof typeof evidencePatterns] || evidencePatterns.unknown;
@@ -192,7 +521,7 @@ export class IntelligentFileAnalyzer {
       });
     });
 
-    return [...new Set(evidence)].slice(0, 6);
+    return [...new Set(evidence)].slice(0, 8);
   }
 
   private static identifyContentGaps(content: string, docType: string): string[] {
@@ -202,13 +531,13 @@ export class IntelligentFileAnalyzer {
     const contentLower = content.toLowerCase();
 
     const expectedContent = {
-      curriculum: ['learning outcome', 'assessment', 'module', 'progression'],
-      policy: ['purpose', 'scope', 'responsibilities', 'review date'],
-      assessment: ['criteria', 'moderation', 'feedback', 'appeals'],
-      governance: ['membership', 'quorum', 'frequency', 'reporting'],
-      clinical: ['supervision', 'competence', 'safety', 'consent'],
-      quality: ['monitoring', 'improvement', 'reporting', 'action plan'],
-      unknown: ['clear purpose', 'defined scope', 'implementation guidance']
+      curriculum: ['learning outcome', 'assessment', 'module', 'progression', 'dental', 'competence'],
+      policy: ['purpose', 'scope', 'responsibilities', 'review date', 'implementation', 'compliance'],
+      assessment: ['criteria', 'moderation', 'feedback', 'appeals', 'standard setting', 'reliability'],
+      governance: ['membership', 'quorum', 'frequency', 'reporting', 'quality assurance', 'monitoring'],
+      clinical: ['supervision', 'competence', 'safety', 'consent', 'clinical governance', 'patient care'],
+      quality: ['monitoring', 'improvement', 'reporting', 'action plan', 'evaluation', 'benchmarking'],
+      unknown: ['clear purpose', 'defined scope', 'implementation guidance', 'quality assurance']
     };
 
     const expectations = expectedContent[docType as keyof typeof expectedContent] || expectedContent.unknown;
@@ -239,7 +568,8 @@ export class IntelligentFileAnalyzer {
       'clinical governance', 'patient safety', 'curriculum', 'assessment',
       'competence', 'supervision', 'quality assurance', 'staff development',
       'learning outcomes', 'clinical skills', 'professionalism', 'ethics',
-      'infection control', 'risk management', 'audit', 'monitoring'
+      'infection control', 'risk management', 'audit', 'monitoring',
+      'dental', 'education', 'GDC', 'standards', 'compliance'
     ];
 
     const contentLower = content.toLowerCase();
@@ -263,7 +593,7 @@ export class IntelligentFileAnalyzer {
     const relevanceKeywords = [
       'policy', 'procedure', 'standard', 'requirement', 'must', 'shall',
       'assessment', 'evaluation', 'criteria', 'competence', 'outcome',
-      'governance', 'committee', 'quality', 'safety', 'clinical'
+      'governance', 'committee', 'quality', 'safety', 'clinical', 'dental'
     ];
 
     paragraphs.forEach(paragraph => {
@@ -288,322 +618,6 @@ export class IntelligentFileAnalyzer {
     return sections.sort((a, b) => b.relevance - a.relevance).slice(0, 8);
   }
 
-  private static async analyzeRequirementWithRealEvidence(
-    requirement: GDCRequirement,
-    fileIntelligences: FileIntelligence[]
-  ): Promise<RequirementAnalysis> {
-    
-    const prompt = this.createEvidenceBasedPrompt(requirement, fileIntelligences);
-    
-    try {
-      const response = await ApiKeyManager.callAI(prompt, 4000);
-      
-      if (!response || !response.response) {
-        throw new Error('No response from AI service');
-      }
-      
-      const aiResponse = response.response;
-      
-      return this.parseEvidenceBasedResponse(aiResponse, requirement, fileIntelligences, false);
-
-    } catch (error) {
-      console.error(`💥 Evidence-based AI call failed:`, error);
-      throw new Error(`AI analysis failed for ${requirement.code}: ${error.message}`);
-    }
-  }
-
-  private static createEvidenceBasedPrompt(requirement: GDCRequirement, fileIntelligences: FileIntelligence[]): string {
-    const filesAnalysis = fileIntelligences.map(file => 
-      `FILE: ${file.name} (${file.documentType} - ${file.contentStrength} evidence)
-CONTENT STRENGTH: ${file.contentStrength}
-EXTRACTED EVIDENCE:
-${(file.extractedEvidence || []).map((evidence, idx) => `${idx + 1}. ${evidence}`).join('\n')}
-IDENTIFIED GAPS:
-${(file.identifiedGaps || []).map((gap, idx) => `${idx + 1}. ${gap}`).join('\n')}
-KEYWORD DENSITY: ${Object.entries(file.keywordDensity || {}).filter(([_, count]) => count > 0).map(([kw, count]) => `${kw}: ${count}`).join(', ')}
-RELEVANT SECTIONS:
-${(file.relevantSections || []).map((section, idx) => `${idx + 1}. [Relevance: ${section.relevance}] ${section.section}`).join('\n')}
----`
-    ).join('\n\n');
-
-    return `EVIDENCE-BASED GDC ANALYSIS - REAL FILE CONTENT ASSESSMENT
-
-CRITICAL MISSION: Analyze ACTUAL file content against specific GDC requirements. Base assessment SOLELY on evidence found in files.
-
-GDC REQUIREMENT:
-- Code: ${requirement.code}
-- Title: ${requirement.title}  
-- Domain: ${requirement.domain}
-- Description: ${requirement.description}
-- Criteria: ${requirement.criteria.join('; ')}
-- Category: ${requirement.category}
-- Weight: ${requirement.weight}
-
-FILE CONTENT ANALYSIS (${fileIntelligences.length} files):
-${filesAnalysis}
-
-ANALYSIS INSTRUCTIONS - BE BRUTALLY HONEST:
-
-1. WHAT EVIDENCE ACTUALLY EXISTS in the files for this requirement?
-2. HOW STRONG is the evidence? (Strong/Moderate/Weak based on content)
-3. WHAT SPECIFIC GAPS exist in the file content?
-4. WHICH FILES provide the best evidence?
-5. WHAT IMPROVEMENTS are needed in specific files?
-6. Base confidence SOLELY on actual file evidence found
-
-RESPONSE FORMAT - BE SPECIFIC AND EVIDENCE-DRIVEN:
-
-STATUS: [met/partially-met/not-met] (Based ONLY on file evidence)
-CONFIDENCE: [50-95]% (Based on evidence strength and coverage)
-
-EVIDENCE_FOUND_IN_FILES:
-[File1: Specific evidence sentence found|File2: Specific evidence sentence found|...]
-
-EVIDENCE_STRENGTH_ASSESSMENT:
-[File1: Strength level and why|File2: Strength level and why|...]
-
-CONTENT_GAPS_IDENTIFIED:
-[File1: Specific gap in content|File2: Specific gap in content|...]
-
-FILE_SPECIFIC_IMPROVEMENTS:
-[Improvement for File1 with exact content suggestion|Improvement for File2 with exact content suggestion|...]
-
-STRONGEST_EVIDENCE_SOURCES:
-[Which files provide best evidence and why]
-
-OVERALL_EVIDENCE_ASSESSMENT:
-[Honest assessment of whether file content adequately addresses requirement]
-
-If files don't contain relevant evidence, be clear about this. Don't invent evidence that doesn't exist.`;
-  }
-
-  private static parseEvidenceBasedResponse(
-    aiResponse: string, 
-    requirement: GDCRequirement,
-    fileIntelligences: FileIntelligence[],
-    simulated: boolean
-  ): RequirementAnalysis {
-    if (!aiResponse) {
-      return this.createEvidenceBasedFallback(requirement, fileIntelligences);
-    }
-
-    const lines = aiResponse.split('\n');
-    const result: any = {
-      status: 'partially-met',
-      confidence: 65,
-      evidence: [],
-      missingElements: [],
-      recommendations: [],
-      relevantContent: [],
-      evidenceStrength: [],
-      contentGaps: [],
-      fileImprovements: [],
-      strongestSources: []
-    };
-
-    let currentSection = '';
-    
-    lines.forEach(line => {
-      if (!line) return;
-      
-      const trimmed = line.trim();
-      
-      if (trimmed.startsWith('STATUS:')) {
-        const status = trimmed.replace('STATUS:', '').trim().toLowerCase();
-        if (['met', 'partially-met', 'not-met'].includes(status)) {
-          result.status = status;
-        }
-      } else if (trimmed.startsWith('CONFIDENCE:')) {
-        const match = trimmed.match(/CONFIDENCE:\s*(\d+)%/);
-        if (match) result.confidence = parseInt(match[1]);
-      } else if (trimmed.startsWith('EVIDENCE_FOUND_IN_FILES:')) {
-        currentSection = 'evidence';
-      } else if (trimmed.startsWith('EVIDENCE_STRENGTH_ASSESSMENT:')) {
-        currentSection = 'evidenceStrength';
-      } else if (trimmed.startsWith('CONTENT_GAPS_IDENTIFIED:')) {
-        currentSection = 'contentGaps';
-      } else if (trimmed.startsWith('FILE_SPECIFIC_IMPROVEMENTS:')) {
-        currentSection = 'fileImprovements';
-      } else if (trimmed.startsWith('STRONGEST_EVIDENCE_SOURCES:')) {
-        currentSection = 'strongestSources';
-      } else if (trimmed.startsWith('OVERALL_EVIDENCE_ASSESSMENT:')) {
-        currentSection = 'assessment';
-      } else if (trimmed.includes('|') && currentSection) {
-        const items = trimmed.split('|').map(item => item.trim()).filter(Boolean);
-        if (result[currentSection]) {
-          result[currentSection].push(...items);
-        }
-      } else if (trimmed && !trimmed.includes(':') && currentSection && result[currentSection]) {
-        result[currentSection].push(trimmed);
-      }
-    });
-
-    // Create intelligent fallbacks based on actual file content
-    if (!result.evidence || result.evidence.length === 0) {
-      result.evidence = [];
-      fileIntelligences.forEach(file => {
-        if (file.extractedEvidence && file.extractedEvidence.length > 0) {
-          result.evidence.push(`${file.name}: ${file.extractedEvidence[0]}`);
-        }
-      });
-      
-      if (result.evidence.length === 0) {
-        result.evidence.push('Limited direct evidence found in uploaded files');
-        result.status = 'not-met';
-        result.confidence = 50;
-      }
-    }
-
-    if (!result.contentGaps || result.contentGaps.length === 0) {
-      result.contentGaps = [];
-      fileIntelligences.forEach(file => {
-        if (file.identifiedGaps && file.identifiedGaps.length > 0) {
-          result.contentGaps.push(`${file.name}: ${file.identifiedGaps[0]}`);
-        }
-      });
-    }
-
-    if (!result.fileImprovements || result.fileImprovements.length === 0) {
-      result.fileImprovements = [];
-      fileIntelligences.forEach(file => {
-        if (file.contentStrength === 'weak') {
-          result.fileImprovements.push(`Enhance ${file.name} with specific ${requirement.domain.toLowerCase()} content`);
-        }
-      });
-    }
-
-    return {
-      requirement,
-      status: result.status as 'met' | 'partially-met' | 'not-met',
-      confidence: Math.max(40, Math.min(95, result.confidence || 65)),
-      evidence: (result.evidence || []).slice(0, 6),
-      missingElements: (result.contentGaps && result.contentGaps.length > 0) ? result.contentGaps : ['Limited evidence in uploaded files for this requirement'],
-      recommendations: (result.fileImprovements && result.fileImprovements.length > 0) ? result.fileImprovements : ['Add specific content addressing this requirement to relevant files'],
-      relevantContent: ['AI-POWERED FILE CONTENT ANALYSIS'],
-      metadata: {
-        goldStandardPractices: [
-          'Direct evidence mapping from file content',
-          'Comprehensive requirement coverage across documents',
-          'Explicit GDC standard references in content'
-        ],
-        inspectionReadiness: result.status === 'met' ? 'ready' : 
-                           result.status === 'partially-met' ? 'partial' : 'not-ready',
-        priorityLevel: requirement.category === 'critical' ? 'critical' : 
-                      result.status === 'not-met' ? 'high' : 'medium',
-        riskLevel: requirement.category === 'critical' && result.status !== 'met' ? 'high' :
-                  result.status === 'not-met' ? 'medium' : 'low',
-        fileAnalysis: {
-          filesAnalyzed: fileIntelligences.length,
-          strongEvidenceFiles: fileIntelligences.filter(f => f.contentStrength === 'strong').length,
-          weakEvidenceFiles: fileIntelligences.filter(f => f.contentStrength === 'weak').length,
-          totalEvidenceFound: fileIntelligences.reduce((sum, file) => sum + (file.extractedEvidence?.length || 0), 0)
-        }
-      }
-    };
-  }
-
-  private static createEvidenceBasedFallback(
-    requirement: GDCRequirement,
-    fileIntelligences: FileIntelligence[]
-  ): RequirementAnalysis {
-    // Intelligent fallback based on actual file content analysis
-    const relevantFiles = fileIntelligences.filter(file => 
-      Object.values(file.keywordDensity || {}).some(count => count > 0) ||
-      (file.extractedEvidence && file.extractedEvidence.length > 0)
-    );
-
-    const totalEvidence = fileIntelligences.reduce((sum, file) => sum + (file.extractedEvidence?.length || 0), 0);
-    const strongFiles = fileIntelligences.filter(f => f.contentStrength === 'strong').length;
-    
-    let status: 'met' | 'partially-met' | 'not-met' = 'partially-met';
-    let confidence = 65;
-
-    if (totalEvidence >= 8 && strongFiles >= 2) {
-      status = 'met';
-      confidence = 85;
-    } else if (totalEvidence >= 3) {
-      status = 'partially-met';
-      confidence = 70;
-    } else {
-      status = 'not-met';
-      confidence = 50;
-    }
-
-    const evidenceExamples = fileIntelligences
-      .flatMap(file => (file.extractedEvidence || []).slice(0, 2).map(evidence => `${file.name}: ${evidence}`))
-      .slice(0, 4);
-
-    const gaps = fileIntelligences
-      .flatMap(file => (file.identifiedGaps || []).slice(0, 1).map(gap => `${file.name}: ${gap}`))
-      .slice(0, 3);
-
-    return {
-      requirement,
-      status,
-      confidence,
-      evidence: evidenceExamples.length > 0 ? evidenceExamples : ['AI analysis completed - reviewing file content for evidence'],
-      missingElements: gaps.length > 0 ? gaps : ['Need more specific content addressing this requirement in uploaded files'],
-      recommendations: [
-        `Add explicit ${requirement.code} compliance statements to relevant policy documents`,
-        `Include specific evidence of ${requirement.domain.toLowerCase()} implementation`,
-        `Enhance documentation with measurable outcomes and monitoring data`
-      ],
-      relevantContent: ['AI-POWERED FILE CONTENT ANALYSIS'],
-      metadata: {
-        goldStandardPractices: [
-          'Direct file content to requirement mapping',
-          'Comprehensive evidence collection across documents',
-          'Explicit compliance demonstration in content'
-        ],
-        inspectionReadiness: status === 'met' ? 'ready' : 
-                           status === 'partially-met' ? 'partial' : 'not-ready',
-        priorityLevel: requirement.category === 'critical' ? 'critical' : 
-                      status === 'not-met' ? 'high' : 'medium',
-        riskLevel: requirement.category === 'critical' && status !== 'met' ? 'high' :
-                  status === 'not-met' ? 'medium' : 'low',
-        fileAnalysis: {
-          filesAnalyzed: fileIntelligences.length,
-          strongEvidenceFiles: strongFiles,
-          weakEvidenceFiles: fileIntelligences.filter(f => f.contentStrength === 'weak').length,
-          totalEvidenceFound: totalEvidence
-        }
-      }
-    };
-  }
-
-  private static calculateIntelligentScore(analysis: RequirementAnalysis, fileIntelligences: FileIntelligence[]): number {
-    const baseScores = {
-      'met': 85,
-      'partially-met': 65, 
-      'not-met': 40
-    };
-
-    const baseScore = baseScores[analysis.status] || 50;
-    const confidenceBonus = ((analysis.confidence || 50) - 50) / 50 * 20;
-    const categoryBonus = analysis.requirement.category === 'critical' ? 8 : 0;
-    
-    // Evidence-based scoring
-    const evidenceStrength = fileIntelligences.filter(f => f.contentStrength === 'strong').length * 3;
-    const evidenceCoverage = Math.min(10, fileIntelligences.filter(f => (f.extractedEvidence?.length || 0) > 0).length * 2);
-    const gapPenalty = Math.max(0, fileIntelligences.filter(f => (f.identifiedGaps?.length || 0) > 0).length * -2);
-    
-    return Math.min(98, Math.max(20, 
-      baseScore + confidenceBonus + categoryBonus + evidenceStrength + evidenceCoverage + gapPenalty
-    ));
-  }
-
-  private static async extractFileContent(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        resolve(content || `File: ${file.name}, Type: ${file.type}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB. Content analysis ready.`);
-      };
-      reader.onerror = () => reject(new Error(`File reading failed for: ${file.name}`));
-      reader.readAsText(file);
-    });
-  }
-
   static generateIntelligentReport(requirements: RequirementCompliance[], fileIntelligences: FileIntelligence[]): string {
     const overallScore = requirements.length > 0 
       ? Math.round(requirements.reduce((sum, req) => sum + req.score, 0) / requirements.length)
@@ -626,11 +640,11 @@ If files don't contain relevant evidence, be clear about this. Don't invent evid
     const partialCount = requirements.filter(r => r.analysis.status === 'partially-met').length;
     const notMetCount = requirements.filter(r => r.analysis.status === 'not-met').length;
 
-    return `AI-POWERED FILE CONTENT ANALYSIS REPORT
+    return `AI-POWERED DENTAL EDUCATION GDC COMPREHENSIVE ANALYSIS REPORT
 ================================================================================
 FILES ANALYZED: ${fileNames}
 ANALYSIS DATE: ${new Date().toLocaleDateString()}
-ANALYSIS TYPE: AI-POWERED FILE CONTENT ANALYSIS
+ANALYSIS TYPE: AI-POWERED FILE CONTENT ANALYSIS - DENTAL EDUCATION FOCUS
 
 EXECUTIVE SUMMARY:
 ${this.getIntelligentExecutiveSummary(requirements, fileIntelligences)}
@@ -663,7 +677,7 @@ EVIDENCE QUALITY ASSESSMENT:
 ${this.getEvidenceQualityAssessment(fileIntelligences)}
 
 ================================================================================
-DentEdTech GDC Analyzer | AI-Powered File Content Analysis
+DentEdTech GDC Analyzer | AI-Powered Dental Education Compliance Analysis
 Based on Actual Document Evidence Extraction
 `;
   }
@@ -677,13 +691,13 @@ Based on Actual Document Evidence Extraction
     const totalEvidence = fileIntelligences.reduce((sum, file) => sum + (file.extractedEvidence?.length || 0), 0);
 
     if (strongFiles >= fileIntelligences.length * 0.7 && totalEvidence >= requirements.length * 2) {
-      return "EXCELLENT EVIDENCE BASE - Files demonstrate comprehensive GDC compliance with strong, specific evidence throughout document content.";
+      return "EXCELLENT EVIDENCE BASE - Files demonstrate comprehensive GDC compliance with strong, specific evidence throughout document content. Ready for dental education inspection with minor enhancements.";
     } else if (strongFiles >= fileIntelligences.length * 0.4 && totalEvidence >= requirements.length) {
-      return "GOOD EVIDENCE BASE - Files show solid compliance evidence with some strong documentation supporting key requirements.";
+      return "GOOD EVIDENCE BASE - Files show solid compliance evidence with some strong documentation supporting key dental education requirements. Systematic enhancements recommended for excellence.";
     } else if (totalEvidence >= requirements.length * 0.5) {
-      return "DEVELOPING EVIDENCE BASE - Limited but relevant evidence found. Files need enhancement for comprehensive compliance demonstration.";
+      return "DEVELOPING EVIDENCE BASE - Limited but relevant evidence found. Files need enhancement for comprehensive dental education compliance demonstration.";
     } else {
-      return "WEAK EVIDENCE BASE - Minimal specific evidence found in files. Significant content enhancement required for GDC compliance.";
+      return "WEAK EVIDENCE BASE - Minimal specific evidence found in files. Significant content enhancement required for GDC dental education compliance.";
     }
   }
 
@@ -715,11 +729,11 @@ Based on Actual Document Evidence Extraction
     const enhancements: string[] = [];
 
     weakFiles.forEach(file => {
-      enhancements.push(`• STRENGTHEN ${file.name}: Add specific evidence for ${file.documentType} requirements`);
+      enhancements.push(`• STRENGTHEN ${file.name}: Add specific dental education evidence for ${file.documentType} requirements`);
     });
 
     lowEvidenceReqs.forEach(req => {
-      enhancements.push(`• ENHANCE DOCUMENTS: Add ${req.requirement.code} evidence to relevant policy files`);
+      enhancements.push(`• ENHANCE DOCUMENTS: Add ${req.requirement.code} evidence to relevant dental education policy files`);
     });
 
     return enhancements.slice(0, 6).join('\n');
