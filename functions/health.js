@@ -1,9 +1,10 @@
 exports.handler = async (event, context) => {
   return {
     statusCode: 200,
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ 
-      message: "HEALTH CHECK WORKING!", 
-      status: "healthy",
+      working: true,
+      message: "Function is working!",
       timestamp: new Date().toISOString()
     })
   };
