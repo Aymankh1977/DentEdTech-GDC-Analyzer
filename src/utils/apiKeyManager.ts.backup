@@ -39,38 +39,11 @@ export class ApiKeyManager {
     }
   }
 
-  static async testAnthropicConnection(): Promise<{success: boolean, message: string}> {
-    try {
-      console.log('🔌 Testing Anthropic API connection...');
-      
-      const response = await fetch('/.netlify/functions/test-anthropic');
-      const data = await response.json();
-      
-      if (response.ok && data.status === 'success') {
-        console.log('✅ Anthropic API connected successfully');
-        return { success: true, message: data.message };
-      } else {
-        console.log('❌ Anthropic API test failed:', data.message);
-        return { success: false, message: data.message };
-      }
-      
-    } catch (error) {
-      console.log('🔌 Anthropic API test error:', error);
-      return { success: false, message: error.message };
-    }
-  }
-
   static async callAI(prompt: string, max_tokens: number = 4000) {
     const endpointAvailable = await this.testEndpoint();
     
     if (!endpointAvailable) {
       throw new Error('AI service unavailable. Please ensure Netlify functions are properly configured with ANTHROPIC_API_KEY.');
-    }
-
-    // Test Anthropic connection first
-    const anthropicTest = await this.testAnthropicConnection();
-    if (!anthropicTest.success) {
-      throw new Error(`Anthropic API not available: ${anthropicTest.message}`);
     }
 
     try {
@@ -87,8 +60,7 @@ export class ApiKeyManager {
       });
       
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
+        throw new Error(`HTTP ${response.status}: AI service error`);
       }
         
       const data = await response.json();

@@ -1,3 +1,5 @@
+import { Anthropic } from '@anthropic-ai/sdk';
+
 export async function handler(event, context) {
   // Handle CORS
   if (event.httpMethod === 'OPTIONS') {
@@ -34,7 +36,7 @@ export async function handler(event, context) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     
     if (!apiKey) {
-      // Enhanced simulation for production when no API key is set
+      console.log('❌ ANTHROPIC_API_KEY not found in environment variables');
       return {
         statusCode: 200,
         headers: { 'Access-Control-Allow-Origin': '*' },
@@ -46,43 +48,33 @@ export async function handler(event, context) {
       };
     }
 
-    console.log('🤖 Making real Claude API call');
+    console.log('🤖 Making real Claude API call with key:', apiKey.substring(0, 10) + '...');
     
-    // Use native fetch (available in Node.js 18+)
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens,
-        messages: [{ role: 'user', content: prompt }]
-      })
+    // Use the Anthropic SDK
+    const anthropic = new Anthropic({ 
+      apiKey: apiKey 
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Claude API error:', response.status, errorText);
-      throw new Error(`API error: ${response.status}`);
-    }
+    const response = await anthropic.messages.create({
+      model: model,
+      max_tokens: max_tokens,
+      messages: [{ role: 'user', content: prompt }]
+    });
 
-    const data = await response.json();
+    console.log('✅ Claude API call successful');
     
     return {
       statusCode: 200,
       headers: { 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify({
-        response: data.content[0].text,
+        response: response.content[0].text,
         simulated: false,
-        model: data.model
+        model: response.model
       })
     };
 
   } catch (error) {
-    console.error('Claude proxy error:', error);
+    console.error('❌ Claude proxy error:', error);
     
     // Enhanced fallback simulation
     return {
@@ -91,7 +83,7 @@ export async function handler(event, context) {
       body: JSON.stringify({ 
         response: generateEnhancedSimulation(event.body?.prompt || 'Analysis request'),
         simulated: true,
-        error: 'AI service using enhanced simulation'
+        error: error.message
       })
     };
   }
@@ -128,52 +120,7 @@ Curriculum Map 2024: Pages 8-12|Programme Specification: Section 4.3|Annual Moni
 GOLD_STANDARD_PRACTICES:
 Digital fluency integration|Research-informed curriculum|Industry partnership in curriculum design
 IMPLEMENTATION_TIMELINE:
-Quick win: Digital skills mapping (0-30 days)|Medium term: Curriculum enhancement (1-6 months)|Long term: Industry partnerships (6-12 months)`,
-
-    'assessment strategy': `STATUS: partially-met
-CONFIDENCE: 78%
-EVIDENCE_FOUND:
-Multiple assessment methods implemented|Assessment blueprint developed|Standard setting processes established
-MISSING_ELEMENTS:
-Comprehensive workplace-based assessment|Digital assessment innovation|Systematic feedback literacy
-RECOMMENDATIONS:
-Enhance workplace-based assessment framework|Implement digital assessment methods|Develop feedback literacy programme
-DOCUMENT_REFERENCES:
-Assessment Strategy: Section 5.2|Examination Regulations: Page 22|External Examiner Reports: 2024 Review
-GOLD_STANDARD_PRACTICES:
-Programmatic assessment|Digital assessment portfolios|Authentic assessment tasks
-IMPLEMENTATION_TIMELINE:
-Quick win: Feedback enhancement (0-30 days)|Medium term: Digital assessment (1-6 months)|Long term: Programmatic assessment (6-12 months)`,
-
-    'patient safety': `STATUS: met
-CONFIDENCE: 85%
-EVIDENCE_FOUND:
-Student competency assessment framework established|Supervision levels clearly defined|Progressive clinical responsibility documented
-MISSING_ELEMENTS:
-Enhanced direct observation assessment|Systematic supervisor training|Digital competency tracking
-RECOMMENDATIONS:
-Implement comprehensive direct observation framework|Develop systematic supervisor development|Enhance digital competency tracking
-DOCUMENT_REFERENCES:
-Clinical Competence Framework: Section 2.1|Supervision Policy: Page 8|Clinical Progression Guide: Sections 3-5
-GOLD_STANDARD_PRACTICES:
-Entrustable Professional Activities|Direct observation with feedback|Competency-based progression
-IMPLEMENTATION_TIMELINE:
-Quick win: Supervisor training (0-30 days)|Medium term: Enhanced assessment (1-6 months)|Long term: Digital tracking (6-12 months)`,
-
-    'staffing': `STATUS: partially-met
-CONFIDENCE: 75%
-EVIDENCE_FOUND:
-Staff qualification verification processes|Relevant clinical experience documented|Teaching qualifications framework
-MISSING_ELEMENTS:
-Comprehensive staff development programme|Systematic teaching excellence development|Clinical skills maintenance tracking
-RECOMMENDATIONS:
-Develop comprehensive staff development strategy|Implement teaching excellence framework|Enhance clinical skills maintenance
-DOCUMENT_REFERENCES:
-Staffing Policy: Section 4.2|CPD Framework: Page 12|Clinical Skills Register: Annual Review
-GOLD_STANDARD_PRACTICES:
-Structured mentorship programmes|Teaching excellence recognition|Interprofessional development
-IMPLEMENTATION_TIMELINE:
-Quick win: Development planning (0-30 days)|Medium term: Framework implementation (1-6 months)|Long term: Excellence culture (6-12 months)`
+Quick win: Digital skills mapping (0-30 days)|Medium term: Curriculum enhancement (1-6 months)|Long term: Industry partnerships (6-12 months)`
   };
 
   // Find the most relevant simulation
