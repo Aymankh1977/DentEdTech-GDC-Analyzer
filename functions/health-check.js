@@ -1,4 +1,3 @@
-// Netlify Function: health-check
 exports.handler = async function(event, context) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   
@@ -15,11 +14,9 @@ exports.handler = async function(event, context) {
         hasKey: !!apiKey,
         keyPreview: apiKey ? apiKey.substring(0, 10) + '...' : 'none',
         keyLength: apiKey ? apiKey.length : 0,
-        keyFormat: apiKey ? (apiKey.startsWith('sk-ant-api') ? 'correct' : 'incorrect') : 'none',
-        status: apiKey ? (apiKey.startsWith('sk-ant-api') ? 'configured' : 'invalid-format') : 'not-configured'
+        keyFormat: apiKey ? (apiKey.startsWith('sk-ant-api') ? 'correct' : 'incorrect') : 'none'
       },
-      timestamp: new Date().toISOString(),
-      service: 'DentEdTech GDC Analyzer'
+      timestamp: new Date().toISOString()
     })
   };
 };
