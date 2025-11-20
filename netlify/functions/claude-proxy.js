@@ -1,5 +1,3 @@
-import { Anthropic } from '@anthropic-ai/sdk';
-
 export async function handler(event, context) {
   // Handle CORS
   if (event.httpMethod === 'OPTIONS') {
@@ -36,24 +34,23 @@ export async function handler(event, context) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     
     if (!apiKey) {
-      console.log('❌ ANTHROPIC_API_KEY not found in environment variables');
+      console.log('❌ ANTHROPIC_API_KEY not configured');
       return {
         statusCode: 200,
         headers: { 'Access-Control-Allow-Origin': '*' },
         body: JSON.stringify({
-          response: generateEnhancedSimulation(prompt),
+          response: getFallbackResponse(prompt),
           simulated: true,
-          message: 'Using enhanced simulation - Set ANTHROPIC_API_KEY for real AI analysis'
+          message: 'API key not configured'
         })
       };
     }
 
-    console.log('🤖 Making real Claude API call with key:', apiKey.substring(0, 10) + '...');
+    console.log('🤖 Making real Claude API call');
     
-    // Use the Anthropic SDK
-    const anthropic = new Anthropic({ 
-      apiKey: apiKey 
-    });
+    // Use dynamic import for better compatibility
+    const { Anthropic } = await import('@anthropic-ai/sdk');
+    const anthropic = new Anthropic({ apiKey });
 
     const response = await anthropic.messages.create({
       model: model,
@@ -61,13 +58,14 @@ export async function handler(event, context) {
       messages: [{ role: 'user', content: prompt }]
     });
 
+    const aiResponse = response.content[0].text;
     console.log('✅ Claude API call successful');
     
     return {
       statusCode: 200,
       headers: { 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify({
-        response: response.content[0].text,
+        response: aiResponse,
         simulated: false,
         model: response.model
       })
@@ -76,12 +74,11 @@ export async function handler(event, context) {
   } catch (error) {
     console.error('❌ Claude proxy error:', error);
     
-    // Enhanced fallback simulation
     return {
       statusCode: 200,
       headers: { 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify({ 
-        response: generateEnhancedSimulation(event.body?.prompt || 'Analysis request'),
+        response: getFallbackResponse(event.body?.prompt || 'Analysis request'),
         simulated: true,
         error: error.message
       })
@@ -89,48 +86,21 @@ export async function handler(event, context) {
   }
 }
 
-// Enhanced simulation for production
-function generateEnhancedSimulation(prompt) {
-  const simulations = {
-    'clinical governance': `STATUS: partially-met
-CONFIDENCE: 82%
+function getFallbackResponse(prompt) {
+  return `STATUS: partially-met
+CONFIDENCE: 75%
 EVIDENCE_FOUND:
-Clinical governance framework documented in Policy v2.1|Risk management protocols established|Incident reporting system implemented
+Document analysis framework active|System configuration in progress|API connectivity check
 MISSING_ELEMENTS:
-Comprehensive clinical audit programme|Systematic quality improvement cycles|Stakeholder engagement in governance
+Live AI processing|Real-time analysis|API connection
 RECOMMENDATIONS:
-Implement structured clinical audit programme|Enhance patient safety culture|Develop systematic quality improvement framework
+Configure ANTHROPIC_API_KEY in Netlify|Redeploy functions|Check environment variables
 DOCUMENT_REFERENCES:
-Clinical Governance Policy v2.1: Section 3.2|Risk Management Framework: Page 15|Patient Safety Protocol: Section 4.1
+System Status: Configuration Required|API Setup: Pending
 GOLD_STANDARD_PRACTICES:
-Regular clinical audit cycles|Multidisciplinary governance meetings|Patient involvement in safety initiatives
+Proper environment configuration|Function deployment|API key management
 IMPLEMENTATION_TIMELINE:
-Quick win: Enhance incident reporting (0-30 days)|Medium term: Implement clinical audits (1-6 months)|Long term: Excellence framework (6-12 months)`,
+Immediate: Set environment variables|Short-term: Redeploy site|Ongoing: Monitor function logs
 
-    'curriculum alignment': `STATUS: met
-CONFIDENCE: 88%
-EVIDENCE_FOUND:
-Comprehensive curriculum mapping to GDC outcomes|Integrated spiral curriculum design|Regular curriculum review cycles
-MISSING_ELEMENTS:
-Enhanced digital dentistry integration|Systematic employability skills mapping
-RECOMMENDATIONS:
-Strengthen digital dentistry components|Enhance interprofessional education|Systematic graduate attribute development
-DOCUMENT_REFERENCES:
-Curriculum Map 2024: Pages 8-12|Programme Specification: Section 4.3|Annual Monitoring Report: Page 7
-GOLD_STANDARD_PRACTICES:
-Digital fluency integration|Research-informed curriculum|Industry partnership in curriculum design
-IMPLEMENTATION_TIMELINE:
-Quick win: Digital skills mapping (0-30 days)|Medium term: Curriculum enhancement (1-6 months)|Long term: Industry partnerships (6-12 months)`
-  };
-
-  // Find the most relevant simulation
-  let bestMatch = 'clinical governance';
-  for (const [key, response] of Object.entries(simulations)) {
-    if (prompt.toLowerCase().includes(key)) {
-      bestMatch = key;
-      break;
-    }
-  }
-
-  return simulations[bestMatch] || simulations['clinical governance'];
+NOTE: Configure ANTHROPIC_API_KEY in Netlify environment variables for real AI analysis.`;
 }
