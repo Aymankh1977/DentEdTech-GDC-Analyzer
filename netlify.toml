@@ -5,8 +5,8 @@
 [build.environment]
   NODE_VERSION = "18"
 
-[functions]
-  directory = "netlify/functions"
+# No functions section - use default location
+# Functions will be auto-detected in the 'functions' directory
 
 [[redirects]]
   from = "/*"

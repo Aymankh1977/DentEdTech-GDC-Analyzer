@@ -1,4 +1,3 @@
-// Simple test function
 exports.handler = async (event, context) => {
   return {
     statusCode: 200,
@@ -7,8 +6,9 @@ exports.handler = async (event, context) => {
       'Access-Control-Allow-Origin': '*'
     },
     body: JSON.stringify({
-      message: 'Test function is working!',
+      message: 'SIMPLE TEST FUNCTION IS WORKING!',
       path: event.path,
+      method: event.httpMethod,
       timestamp: new Date().toISOString()
     })
   };
