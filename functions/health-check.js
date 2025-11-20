@@ -1,23 +1,25 @@
-// ULTRA-RELIABLE HEALTH CHECK
-exports.handler = async (event, context) => {
-  console.log('✅ Health check called at:', new Date().toISOString());
+// Netlify Function: health-check
+exports.handler = async function(event, context) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   
   return {
     statusCode: 200,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+      'Access-Control-Allow-Origin': '*'
     },
     body: JSON.stringify({
-      status: "SUPER_HEALTHY",
-      message: "🎉 CONGRATULATIONS! Your function is WORKING!",
+      status: "healthy",
+      message: "Health check is working!",
+      anthropic: {
+        hasKey: !!apiKey,
+        keyPreview: apiKey ? apiKey.substring(0, 10) + '...' : 'none',
+        keyLength: apiKey ? apiKey.length : 0,
+        keyFormat: apiKey ? (apiKey.startsWith('sk-ant-api') ? 'correct' : 'incorrect') : 'none',
+        status: apiKey ? (apiKey.startsWith('sk-ant-api') ? 'configured' : 'invalid-format') : 'not-configured'
+      },
       timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || 'production',
-      hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
-      keyPreview: process.env.ANTHROPIC_API_KEY ? 
-        process.env.ANTHROPIC_API_KEY.substring(0, 8) + '...' : 'not-set'
+      service: 'DentEdTech GDC Analyzer'
     })
   };
 };

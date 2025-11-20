@@ -1,5 +1,5 @@
-// REAL Claude AI Proxy Function
-exports.handler = async (event, context) => {
+// Netlify Function: claude-proxy
+exports.handler = async function(event, context) {
   // Handle CORS
   if (event.httpMethod === 'OPTIONS') {
     return {
@@ -35,21 +35,30 @@ exports.handler = async (event, context) => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     
     if (!apiKey) {
-      console.log('❌ ANTHROPIC_API_KEY not configured in environment variables');
       return {
         statusCode: 200,
         headers: { 'Access-Control-Allow-Origin': '*' },
         body: JSON.stringify({
-          response: getSimulatedResponse(prompt),
+          response: "STATUS: api-key-missing\nCONFIDENCE: 50%\nMISSING_ELEMENTS: Valid Anthropic API key configuration\nRECOMMENDATIONS: Add ANTHROPIC_API_KEY to Netlify environment variables",
           simulated: true,
-          message: 'API key not configured - using simulation'
+          message: 'API key not configured'
         })
       };
     }
 
-    console.log('🤖 Making REAL Claude API call...');
-    
-    // Use the Anthropic API directly
+    if (!apiKey.startsWith('sk-ant-api')) {
+      return {
+        statusCode: 200,
+        headers: { 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({
+          response: "STATUS: invalid-api-key\nCONFIDENCE: 50%\nMISSING_ELEMENTS: Valid API key format\nRECOMMENDATIONS: Get valid key from https://console.anthropic.com/",
+          simulated: true,
+          message: 'Invalid API key format'
+        })
+      };
+    }
+
+    // Use the Anthropic API
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -65,59 +74,30 @@ exports.handler = async (event, context) => {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Anthropic API error: ${response.status} - ${errorText}`);
+      throw new Error(`API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const aiResponse = data.content[0].text;
-    
-    console.log('✅ REAL AI analysis completed! Response length:', aiResponse.length);
     
     return {
       statusCode: 200,
       headers: { 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify({
-        response: aiResponse,
+        response: data.content[0].text,
         simulated: false,
-        model: data.model,
-        usage: data.usage
+        model: data.model
       })
     };
 
   } catch (error) {
-    console.error('❌ Claude proxy error:', error);
-    
     return {
       statusCode: 200,
       headers: { 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify({ 
-        response: getSimulatedResponse(event.body?.prompt || 'Analysis request'),
+        response: "STATUS: error\nCONFIDENCE: 50%\nERROR: " + error.message + "\nRECOMMENDATIONS: Check API key and network connection",
         simulated: true,
         error: error.message
       })
     };
   }
 };
-
-function getSimulatedResponse(prompt) {
-  return `STATUS: waiting-for-api-key
-CONFIDENCE: 90%
-EVIDENCE_FOUND:
-Netlify functions infrastructure: WORKING ✅|Health check: RESPONDING ✅|Platform: READY ✅
-MISSING_ELEMENTS:
-Anthropic API key configuration|Live AI processing
-RECOMMENDATIONS:
-1. Go to Netlify dashboard → Site settings → Environment variables
-2. Add ANTHROPIC_API_KEY with your Claude API key
-3. Redeploy your site
-4. Real AI analysis will begin immediately
-DOCUMENT_REFERENCES:
-Platform Status: Ready|API Connection: Waiting|Infrastructure: Working
-GOLD_STANDARD_PRACTICES:
-Environment variable security|API key management|Production readiness
-IMPLEMENTATION_TIMELINE:
-Immediate: Add API key (2 minutes)|Instant: AI activation|Real-time: Document analysis
-
-🎯 THE PLATFORM IS READY! Just add your Anthropic API key to activate real AI analysis.`;
-}

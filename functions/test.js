@@ -1,5 +1,5 @@
-// FOOLPROOF HELLO WORLD FUNCTION
-exports.handler = async (event, context) => {
+// Simple test function
+exports.handler = async function(event, context) {
   return {
     statusCode: 200,
     headers: {
@@ -7,10 +7,8 @@ exports.handler = async (event, context) => {
       'Access-Control-Allow-Origin': '*'
     },
     body: JSON.stringify({
-      message: "🌍 Hello World! Your Netlify functions are ALIVE!",
+      message: "Test function is working!",
       success: true,
-      path: event.path,
-      method: event.httpMethod,
       timestamp: new Date().toISOString()
     })
   };
