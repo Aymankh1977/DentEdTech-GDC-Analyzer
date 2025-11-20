@@ -17,14 +17,20 @@ export class ApiKeyManager {
       }
       
       const data = await response.json();
-      console.log('✅ Health check:', data);
+      console.log('✅ Health check response:', data);
       
       // Check if Anthropic is properly configured
       if (data.anthropic?.status === 'connected') {
-        console.log('🎯 Anthropic API: CONNECTED');
+        console.log('🎯 Anthropic API: CONNECTED AND WORKING');
         return true;
       } else {
         console.log('❌ Anthropic API issue:', data.anthropic?.message);
+        console.log('🔑 Key details:', data.anthropic?.keyDetails);
+        
+        // Show helpful error message
+        if (data.anthropic?.keyDetails?.keyFormat === 'incorrect') {
+          console.log('💡 SOLUTION: Get a valid API key from https://console.anthropic.com/');
+        }
         return false;
       }
       
@@ -57,7 +63,7 @@ export class ApiKeyManager {
       const data = await response.json();
       
       if (data.simulated) {
-        console.log('⚠️ Using simulated response');
+        console.log('⚠️ Using simulated response - API key may be invalid');
         // We don't throw error for simulation anymore, just log it
       } else {
         console.log('✅ Real AI response received');
@@ -81,17 +87,17 @@ function getFallbackResponse(prompt: string): string {
   return `STATUS: partially-met
 CONFIDENCE: 70%
 EVIDENCE_FOUND:
-Document analysis framework active|Compliance review initiated|Quality assurance processes engaged
+Platform configuration in progress|API connectivity check|System setup active
 MISSING_ELEMENTS:
-Real AI processing|Live evidence extraction|Direct API connectivity
+Valid Anthropic API key|Live AI processing|API authentication
 RECOMMENDATIONS:
-Check Netlify function configuration|Verify ANTHROPIC_API_KEY environment variable|Ensure proper function deployment
+Get valid API key from https://console.anthropic.com/|Update Netlify environment variables|Redeploy site
 DOCUMENT_REFERENCES:
-System Status: Connection Required|API Configuration: Pending
+API Configuration: Authentication Required|System Status: Key Validation Needed
 GOLD_STANDARD_PRACTICES:
-Configure environment variables|Deploy updated functions|Test API connectivity
+Valid API key from Anthropic console|Proper environment variable setup|Regular key rotation
 IMPLEMENTATION_TIMELINE:
-Immediate: Check Netlify dashboard|Short-term: Redeploy functions|Ongoing: Monitor connection status
+Immediate: Get API key from anthropic.com|Quick: Update Netlify environment|Fast: Redeploy site
 
-NOTE: Platform is in simulation mode. Real AI analysis requires proper Anthropic API configuration.`;
+NOTE: Invalid API key detected. Please get a valid key from https://console.anthropic.com/ and update your Netlify environment variables.`;
 }

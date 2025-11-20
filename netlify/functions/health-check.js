@@ -2,9 +2,17 @@ export async function handler(event, context) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   let anthropicStatus = 'not-configured';
   let anthropicMessage = '';
+  let keyDetails = {};
 
   try {
     if (apiKey) {
+      keyDetails = {
+        hasKey: true,
+        keyLength: apiKey.length,
+        keyStartsWith: apiKey.substring(0, 10),
+        keyFormat: apiKey.startsWith('sk-ant-api') ? 'correct' : 'incorrect'
+      };
+
       // Use dynamic import
       const { Anthropic } = await import('@anthropic-ai/sdk');
       const anthropic = new Anthropic({ apiKey });
@@ -17,14 +25,21 @@ export async function handler(event, context) {
       });
       
       anthropicStatus = 'connected';
-      anthropicMessage = 'API is working';
+      anthropicMessage = 'API is working correctly';
     } else {
       anthropicStatus = 'missing-key';
-      anthropicMessage = 'ANTHROPIC_API_KEY not found';
+      anthropicMessage = 'ANTHROPIC_API_KEY not found in environment';
+      keyDetails = { hasKey: false };
     }
   } catch (error) {
     anthropicStatus = 'error';
     anthropicMessage = error.message;
+    keyDetails = {
+      hasKey: !!apiKey,
+      keyLength: apiKey?.length || 0,
+      keyStartsWith: apiKey?.substring(0, 10) || 'none',
+      keyFormat: apiKey?.startsWith('sk-ant-api') ? 'correct' : 'incorrect'
+    };
   }
 
   return {
@@ -39,11 +54,11 @@ export async function handler(event, context) {
       anthropic: {
         status: anthropicStatus,
         message: anthropicMessage,
-        hasKey: !!apiKey,
-        keyPreview: apiKey ? apiKey.substring(0, 10) + '...' : 'none'
+        keyDetails: keyDetails
       },
       timestamp: new Date().toISOString(),
-      service: 'DentEdTech GDC Analyzer'
+      service: 'DentEdTech GDC Analyzer',
+      instructions: 'If API key is invalid, get a new one from https://console.anthropic.com/'
     })
   };
 }
