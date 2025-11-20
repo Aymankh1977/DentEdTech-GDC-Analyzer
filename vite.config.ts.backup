@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { copy } from 'vite-plugin-copy'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -8,14 +7,6 @@ export default defineConfig(({ mode }) => ({
     react({
       fastRefresh: true,
     }),
-    copy({
-      patterns: [
-        {
-          from: 'netlify/functions/*.js',
-          to: '../../netlify/functions/[name][ext]'
-        }
-      ]
-    })
   ],
   server: {
     port: 5174,
