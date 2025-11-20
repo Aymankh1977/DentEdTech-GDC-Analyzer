@@ -1,14 +1,24 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  functions = "functions"
 
 [build.environment]
   NODE_VERSION = "18"
+  # This ensures Node 18 which has better function support
 
-# No functions section - use default location
-# Functions will be auto-detected in the 'functions' directory
+[functions]
+  directory = "functions"
+  # No node_bundler specified - let Netlify choose the best one
 
+# Simple redirects that always work
 [[redirects]]
   from = "/*"
   to = "/index.html"
+  status = 200
+
+# Make sure functions are accessible
+[[redirects]]
+  from = "/.netlify/functions/*"
+  to = "/.netlify/functions/:splat"
   status = 200
